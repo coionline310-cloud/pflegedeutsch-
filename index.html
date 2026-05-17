@@ -538,9 +538,12 @@ kbd{background:var(--s4);border:1px solid var(--b2);border-radius:4px;padding:1p
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- Supabase realtime (auto-sync with admin.html) -->
+<script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
 <script>
 // ════════════════════════════════════════════════════════
-// DATA — loaded from existing vocabulary + new dialogues
+// DATA — defaults (sẽ bị Supabase ghi đè nếu đã cấu hình)
 // ════════════════════════════════════════════════════════
 const CAT_META={
   patient:  {l:'Bệnh nhân',     ic:'👤', c:'var(--c1)'},
@@ -558,7 +561,7 @@ const PHRASE_CATS=['patient','colleague','handover','emergency'];
 const VOCAB_CATS=['vocab','anatomy','medication','documentation','nursing_process','mental'];
 
 // Compact DATA — representative subset (full version has 300+ items)
-const DATA={
+let DATA={
 patient:[
   {g:"Chào hỏi",i:[
     {de:"Guten Morgen! Wie geht es Ihnen heute?",vi:"Chào buổi sáng! Hôm nay bạn thế nào?"},
@@ -865,7 +868,7 @@ mental:[
 // ════════════════════════════════════════════════════════
 // DIALOGUES
 // ════════════════════════════════════════════════════════
-const DIALOGUES=[
+let DIALOGUES=[
   {title:"Nhập viện – Hỏi thăm ban đầu",icon:"🏥",diff:"easy",lines:[
     {role:"nurse",de:"Guten Morgen! Mein Name ist Anna, ich bin Ihre Pflegefachkraft für heute.",vi:"Chào buổi sáng! Tôi là Anna, điều dưỡng phụ trách bạn hôm nay."},
     {role:"patient",de:"Guten Morgen. Ich bin Herr Nguyen.",vi:"Chào buổi sáng. Tôi là ông Nguyen."},
@@ -954,7 +957,7 @@ const DIALOGUES=[
 // ════════════════════════════════════════════════════════
 // GAMIFICATION — XP, Levels, Badges, Streak
 // ════════════════════════════════════════════════════════
-const LEVELS=[
+let LEVELS=[
   {min:0,   name:"Anfänger",      emoji:"🌱"},
   {min:100, name:"Lernender",     emoji:"📖"},
   {min:300, name:"Fortgeschrittener",emoji:"⚡"},
@@ -964,7 +967,7 @@ const LEVELS=[
   {min:2500,name:"Meister",       emoji:"🏆"},
   {min:4000,name:"Pflegeprofi",   emoji:"🌟"},
 ];
-const ALL_BADGES=[
+let ALL_BADGES=[
   {id:"first_flash", emoji:"🃏", name:"Thẻ đầu tiên",    cond:s=>s.flashDone>=1},
   {id:"flash10",     emoji:"🔟", name:"10 thẻ flashcard", cond:s=>s.flashDone>=10},
   {id:"flash50",     emoji:"🎴", name:"50 thẻ flashcard", cond:s=>s.flashDone>=50},
@@ -1096,11 +1099,15 @@ function speakDE(text){
 
 // COUNT
 let totalItems=0;
-Object.keys(DATA).forEach(cat=>{
-  const n=flatCat(cat).length;totalItems+=n;
-  const el=document.getElementById('cnt-'+cat);if(el)el.textContent=n;
-});
-document.getElementById('s-total').textContent=totalItems;
+function recomputeCounts(){
+  totalItems=0;
+  Object.keys(DATA).forEach(cat=>{
+    const n=flatCat(cat).length;totalItems+=n;
+    const el=document.getElementById('cnt-'+cat);if(el)el.textContent=n;
+  });
+  const tEl=document.getElementById('s-total');if(tEl)tEl.textContent=totalItems;
+}
+recomputeCounts();
 
 // ════════════════════════════════════════════════════════
 // NAV
@@ -1822,6 +1829,157 @@ renderDashboard();
 window.speechSynthesis&&window.speechSynthesis.getVoices();
 // Welcome XP
 setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
+
+// ════════════════════════════════════════════════════════
+// 🔴 LIVE DATA — Supabase Realtime (đồng bộ với admin.html)
+// ════════════════════════════════════════════════════════
+(function liveDataLayer(){
+  const URL = window.SUPABASE_URL, KEY = window.SUPABASE_ANON_KEY;
+  if(!URL || !KEY || URL.includes('YOUR-PROJECT-REF') || KEY.includes('YOUR-ANON')){
+    console.info('[live] Supabase chưa cấu hình — dùng dữ liệu mặc định trong index.html');
+    return;
+  }
+  if(!window.supabase){
+    console.warn('[live] supabase-js chưa load');
+    return;
+  }
+  const sb = window.supabase.createClient(URL, KEY, {
+    realtime: { params: { eventsPerSecond: 10 } }
+  });
+  window.sbLive = sb;
+
+  const COND_FACTORY = {
+    xp:             v => s=>s.xp>=v,
+    flashDone:      v => s=>s.flashDone>=v,
+    exDone:         v => s=>s.exDone>=v,
+    exPerfectRound: v => s=>s.exPerfectRound>=v,
+    streak:         v => s=>s.streak>=v,
+    mastered:       v => s=>s.mastered>=v,
+    roleplays:      v => s=>s.roleplays>=v,
+    dialogues:      v => s=>s.dialogues>=v
+  };
+
+  async function loadAll(){
+    const [p, d, l, b] = await Promise.all([
+      sb.from('phrases').select('*').order('category').order('sort_order').order('id'),
+      sb.from('dialogues').select('*, dialogue_lines(*)').order('sort_order').order('id'),
+      sb.from('levels').select('*').order('min_xp'),
+      sb.from('badges').select('*').order('sort_order').order('id')
+    ]);
+    if(p.error || d.error || l.error || b.error){
+      console.warn('[live] load lỗi:', p.error||d.error||l.error||b.error);
+      return false;
+    }
+    // ── Phrases → DATA ──
+    if((p.data||[]).length){
+      const newData = {};
+      Object.keys(CAT_META).forEach(c => newData[c] = []);
+      const grouped = {};
+      p.data.forEach(row=>{
+        const c = row.category;
+        if(!grouped[c]) grouped[c] = {};
+        const g = row.group_name;
+        if(!grouped[c][g]) grouped[c][g] = [];
+        const item = { de: row.de, vi: row.vi, _so: row.sort_order||0 };
+        if(row.note) item.n = row.note;
+        grouped[c][g].push(item);
+      });
+      Object.entries(grouped).forEach(([c, gmap])=>{
+        if(!newData[c]) newData[c] = [];
+        newData[c] = Object.entries(gmap).map(([gname, items])=>({
+          g: gname,
+          i: items.sort((a,b)=>(a._so||0)-(b._so||0)).map(({_so, ...rest})=>rest)
+        }));
+      });
+      DATA = newData;
+    }
+    // ── Dialogues ──
+    if((d.data||[]).length){
+      DIALOGUES = d.data.map(row=>({
+        title: row.title,
+        icon: row.icon || '💬',
+        diff: row.difficulty || 'easy',
+        lines: (row.dialogue_lines||[])
+          .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+          .map(L=>({ role: L.role, de: L.de, vi: L.vi }))
+      }));
+    }
+    // ── Levels ──
+    if((l.data||[]).length){
+      LEVELS = l.data
+        .slice()
+        .sort((a,b)=>a.min_xp-b.min_xp)
+        .map(r=>({ min: r.min_xp, name: r.name, emoji: r.emoji||'⭐' }));
+    }
+    // ── Badges ──
+    if((b.data||[]).length){
+      ALL_BADGES = b.data
+        .slice()
+        .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+        .map(r=>{
+          const make = COND_FACTORY[r.condition_type] || (()=>()=>false);
+          return { id: r.code, emoji: r.emoji||'🏅', name: r.name, cond: make(r.condition_value||0) };
+        });
+    }
+    return true;
+  }
+
+  function getActivePageId(){
+    const a = document.querySelector('.page.active');
+    return a ? a.id.replace(/^page-/, '') : 'dashboard';
+  }
+
+  function rerenderActive(){
+    // Xóa cache trang đã render để ensurePage() dựng lại với DATA mới
+    document.querySelectorAll('.page').forEach(p=>{
+      const pg = p.id.replace(/^page-/, '');
+      if(!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg)) p.innerHTML = '';
+    });
+    Object.keys(flashState).forEach(k=>delete flashState[k]);
+    recomputeCounts();
+    updateXPUI();
+    const pg = getActivePageId();
+    if(pg==='dashboard')  renderDashboard();
+    else if(pg==='dialogue') renderDialogues();
+    else if(pg==='srs')      renderSRS();
+    else if(pg==='roleplay') renderRoleplay();
+    else if(pg && pg!=='exercise') ensurePage(pg);
+  }
+
+  let pending = false, firstSync = true;
+  function debouncedReload(){
+    if(pending) return;
+    pending = true;
+    setTimeout(async ()=>{
+      pending = false;
+      const ok = await loadAll();
+      if(ok){
+        rerenderActive();
+        if(!firstSync) toast('🔄 Nội dung vừa được cập nhật từ admin');
+        firstSync = false;
+      }
+    }, 350);
+  }
+
+  // Boot
+  (async ()=>{
+    const ok = await loadAll();
+    if(ok){
+      rerenderActive();
+      firstSync = false;
+      console.info('[live] Đồng bộ Supabase OK');
+    } else {
+      console.warn('[live] Không tải được dữ liệu — dùng default. Kiểm tra RLS policy cho role anon hoặc đăng nhập.');
+    }
+  })();
+
+  // Realtime — subscribe các bảng nội dung
+  ['phrases','dialogues','dialogue_lines','levels','badges'].forEach(tbl=>{
+    sb.channel('rt:'+tbl)
+      .on('postgres_changes', { event:'*', schema:'public', table: tbl }, debouncedReload)
+      .subscribe(status=>{ if(status==='SUBSCRIBED') console.info('[live] Realtime ON:', tbl); });
+  });
+})();
 </script>
 </body>
 </html>
