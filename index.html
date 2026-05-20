@@ -540,7 +540,8 @@ kbd{background:var(--s4);border:1px solid var(--b2);border-radius:4px;padding:1p
 <div class="toast" id="toast"></div>
 
 <!-- Supabase realtime (auto-sync with admin.html) -->
-<script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>if(!window.supabase){document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"><\/script>');}</script>
 <script src="config.js"></script>
 <script>
 // ════════════════════════════════════════════════════════
