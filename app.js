@@ -1573,6 +1573,30 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
   });
   window.sbLive = sb;
 
+  // ── Load categories NGAY, độc lập với phrases/dialogues ──
+  async function syncCategories(){
+    const {data,error}=await sb.from('categories').select('*').order('sort_order').order('id');
+    if(error){
+      console.warn('[live] categories: không đọc được (anon RLS?):', error.message);
+      console.warn('[live] Fix: chạy trong Supabase SQL Editor:\nCREATE POLICY "categories_read_anon" ON public.categories FOR SELECT TO anon USING (true);');
+      return false;
+    }
+    if(!data||!data.length) return false;
+    Object.keys(CAT_META).forEach(k=>delete CAT_META[k]);
+    const newPhrase=[],newVocab=[];
+    data.forEach(c=>{
+      CAT_META[c.key]={l:c.label,ic:c.icon,c:c.color||'var(--t2)'};
+      if(c.section==='communication') newPhrase.push(c.key);
+      else newVocab.push(c.key);
+    });
+    PHRASE_CATS.splice(0,PHRASE_CATS.length,...newPhrase);
+    VOCAB_CATS.splice(0,VOCAB_CATS.length,...newVocab);
+    buildSidebarCats(data);
+    return true;
+  }
+  // Chạy ngay khi trang load
+  syncCategories();
+
   const COND_FACTORY = {
     xp:             v => s=>s.xp>=v,
     flashDone:      v => s=>s.flashDone>=v,
@@ -1585,32 +1609,18 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
   };
 
   async function loadAll(){
-    const [p, d, l, b, cats] = await Promise.all([
+    const [p, d, l, b] = await Promise.all([
       sb.from('phrases').select('*').order('category').order('sort_order').order('id'),
       sb.from('dialogues').select('*, dialogue_lines(*)').order('sort_order').order('id'),
       sb.from('levels').select('*').order('min_xp'),
-      sb.from('badges').select('*').order('sort_order').order('id'),
-      sb.from('categories').select('*').order('sort_order').order('id')
+      sb.from('badges').select('*').order('sort_order').order('id')
     ]);
     // phrases & dialogues là bắt buộc; levels/badges có thể dùng defaults
     if(p.error){ console.warn('[live] phrases error:', p.error?.message); return false; }
     if(d.error){ console.warn('[live] dialogues error:', d.error?.message); return false; }
     if(l.error) console.warn('[live] levels error (dùng defaults):', l.error?.message);
     if(b.error) console.warn('[live] badges error (dùng defaults):', b.error?.message);
-    if(cats.error) console.warn('[live] categories error (kiểm tra RLS anon policy):', cats.error?.message);
-    // ── Categories → CAT_META, PHRASE_CATS, VOCAB_CATS, sidebar ──
-    if(cats.data && cats.data.length){
-      Object.keys(CAT_META).forEach(k=>delete CAT_META[k]);
-      const newPhrase=[],newVocab=[];
-      cats.data.forEach(c=>{
-        CAT_META[c.key]={l:c.label,ic:c.icon,c:c.color||'var(--t2)'};
-        if(c.section==='communication') newPhrase.push(c.key);
-        else newVocab.push(c.key);
-      });
-      PHRASE_CATS.splice(0,PHRASE_CATS.length,...newPhrase);
-      VOCAB_CATS.splice(0,VOCAB_CATS.length,...newVocab);
-      buildSidebarCats(cats.data);
-    }
+    // categories đã được xử lý bởi syncCategories() — không cần làm lại ở đây
     // ── Phrases → DATA ──
     if((p.data||[]).length){
       const newData = {};
@@ -1715,10 +1725,14 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
     }
   })();
 
-  // Realtime — subscribe các bảng nội dung (bao gồm categories để sidebar cập nhật tức thời)
-  ['phrases','dialogues','dialogue_lines','levels','badges','categories'].forEach(tbl=>{
+  // Realtime — subscribe các bảng nội dung
+  ['phrases','dialogues','dialogue_lines','levels','badges'].forEach(tbl=>{
     sb.channel('rt:'+tbl)
       .on('postgres_changes', { event:'*', schema:'public', table: tbl }, debouncedReload)
       .subscribe(status=>{ if(status==='SUBSCRIBED') console.info('[live] Realtime ON:', tbl); });
   });
+  // categories cập nhật sidebar ngay lập tức, không cần reload toàn bộ
+  sb.channel('rt:categories')
+    .on('postgres_changes', { event:'*', schema:'public', table:'categories' }, ()=>syncCategories())
+    .subscribe(status=>{ if(status==='SUBSCRIBED') console.info('[live] Realtime ON: categories'); });
 })();
