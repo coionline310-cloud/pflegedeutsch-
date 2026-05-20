@@ -78,6 +78,8 @@ a{color:var(--blue);text-decoration:none;}
 .btn-red:hover{background:rgba(255,77,77,.15);}
 .btn-blue{background:rgba(79,163,255,.1);border-color:rgba(79,163,255,.25);color:var(--blue);}
 .btn-blue:hover{background:rgba(79,163,255,.18);}
+.btn-orange{background:rgba(255,165,0,.1);border-color:rgba(255,165,0,.3);color:#ffaa33;}
+.btn-orange:hover{background:rgba(255,165,0,.18);}
 .btn-sm{padding:.3rem .7rem;font-size:.72rem;}
 
 /* ── TABLE ─────────────────────────────────────────────── */

@@ -221,11 +221,23 @@
 
     <div class="settings-section">
       <div class="settings-title">🔍 Kiểm tra kết nối Supabase</div>
-      <div class="settings-desc">Chạy trước khi import để xác nhận bảng tồn tại, quyền write OK, và seed-data.js đã load.</div>
+      <div class="settings-desc">Chạy trước khi import để xác nhận bảng tồn tại, quyền write OK, seed-data.js đã load, và <strong>index.html có thể đọc danh mục</strong>.</div>
       <div class="settings-row">
         <button class="btn btn-blue" id="checkDbBtn" onclick="checkDB()">🔍 Kiểm tra kết nối</button>
+        <button class="btn btn-orange" id="fixCatBtn" style="display:none" onclick="showFixCatSQL()">🔧 Fix index.html categories</button>
       </div>
       <div id="seedResult" style="margin-top:.7rem;font-size:.79rem;line-height:1.7;"></div>
+      <div id="fixCatSQL" style="display:none;margin-top:.8rem;">
+        <div class="warn-box">⚠️ index.html không đọc được bảng <code>categories</code> vì thiếu RLS policy cho anon. Chạy SQL này trong <strong>Supabase → SQL Editor</strong>:</div>
+        <pre style="background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:.8rem;font-size:.74rem;color:var(--teal);overflow-x:auto;margin-top:.5rem;white-space:pre-wrap;">-- Cho phép người dùng chưa đăng nhập (anon) đọc danh mục
+DROP POLICY IF EXISTS "categories_read_anon" ON public.categories;
+CREATE POLICY "categories_read_anon" ON public.categories
+  FOR SELECT TO anon USING (true);
+
+-- Báo Supabase cập nhật schema cache
+NOTIFY pgrst, 'reload schema';</pre>
+        <button class="btn btn-blue" style="margin-top:.4rem;" onclick="navigator.clipboard.writeText(document.querySelector('#fixCatSQL pre').textContent).then(()=>toast('✓ Đã copy SQL!'))">📋 Copy SQL</button>
+      </div>
     </div>
 
     <div class="settings-section">
