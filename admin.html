@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — PflegeDeutsch V4</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090f;--s1:#0c1018;--s2:#111620;--s3:#18202e;--s4:#1f2a3c;--s5:#28364a;
+  --b1:rgba(255,255,255,0.05);--b2:rgba(255,255,255,0.09);--b3:rgba(255,255,255,0.16);--b4:rgba(255,255,255,0.24);
+  --tx:#e2eaf5;--t2:#8aa4bf;--t3:#536880;--t4:#334455;
+  --blue:#4fa3ff;--blue2:#2777d9;--green:#2fd17a;--red:#ff4d4d;
+  --yellow:#f0c040;--teal:#25cba8;--purple:#9f6ef5;--orange:#ff8533;--pink:#f06090;
+  --r:10px;--rl:14px;--rxl:18px;
+  --font:'Plus Jakarta Sans',sans-serif;
+  --sh:0 4px 24px rgba(0,0,0,0.4);--sh-sm:0 2px 10px rgba(0,0,0,0.3);
+  --sidebar-w:220px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+body{font-family:var(--font);background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px;line-height:1.6;}
+button,input,textarea,select{font-family:var(--font);}
+button{cursor:pointer;}
+a{color:var(--blue);text-decoration:none;}
+
+/* ── LOGIN ───────────────────────────────────────────────── */
+#loginScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem;}
+.login-box{background:var(--s2);border:1px solid var(--b2);border-radius:var(--rxl);padding:2rem;width:100%;max-width:380px;box-shadow:var(--sh);}
+.login-logo{text-align:center;margin-bottom:1.5rem;}
+.login-logo h1{font-size:1.3rem;font-weight:700;}
+.login-logo p{font-size:.76rem;color:var(--t3);margin-top:4px;}
+.login-badge{display:inline-block;background:linear-gradient(135deg,var(--blue2),var(--purple));color:#fff;font-size:.58rem;font-weight:700;padding:2px 7px;border-radius:5px;margin-left:5px;vertical-align:middle;}
+.form-lbl{font-size:.73rem;color:var(--t2);margin-bottom:4px;display:block;}
+.form-inp{width:100%;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:.65rem .9rem;color:var(--tx);font-size:.87rem;margin-bottom:.9rem;transition:border-color .15s;}
+.form-inp:focus{outline:none;border-color:var(--blue);}
+.btn-pri{width:100%;padding:.7rem;background:linear-gradient(135deg,var(--blue2),var(--blue));color:#fff;border:none;border-radius:var(--r);font-size:.88rem;font-weight:600;transition:opacity .14s;}
+.btn-pri:hover{opacity:.9;}
+.btn-pri:disabled{opacity:.5;cursor:not-allowed;}
+.login-err{background:rgba(255,77,77,.1);border:1px solid rgba(255,77,77,.2);border-radius:var(--r);padding:.6rem .85rem;font-size:.79rem;color:var(--red);margin-bottom:.8rem;display:none;}
+
+/* ── LAYOUT ─────────────────────────────────────────────── */
+#adminApp{display:none;min-height:100vh;}
+.adm-layout{display:flex;min-height:100vh;}
+.adm-sidebar{width:var(--sidebar-w);background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:200;overflow-y:auto;}
+.adm-main{flex:1;margin-left:var(--sidebar-w);display:flex;flex-direction:column;min-height:100vh;}
+
+/* ── SIDEBAR ─────────────────────────────────────────────── */
+.sb-logo{padding:.9rem 1rem .7rem;border-bottom:1px solid var(--b1);}
+.sb-logo-title{font-size:.9rem;font-weight:700;}
+.sb-logo-sub{font-size:.63rem;color:var(--t3);margin-top:2px;}
+.sb-user{padding:.6rem 1rem;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:8px;}
+.sb-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--blue2),var(--purple));display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;color:#fff;flex-shrink:0;}
+.sb-user-info{flex:1;overflow:hidden;}
+.sb-user-nm{font-size:.76rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sb-user-role{font-size:.62rem;color:var(--t3);}
+.sb-nav{flex:1;padding:.4rem 0;}
+.nav-sec{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t4);padding:.65rem 1rem .2rem;}
+.nav-it{display:flex;align-items:center;gap:7px;padding:.4rem 1rem;color:var(--t3);font-size:.79rem;font-weight:500;cursor:pointer;transition:all .14s;border-left:2px solid transparent;user-select:none;}
+.nav-it:hover{color:var(--tx);background:var(--b1);}
+.nav-it.active{color:#fff;background:rgba(255,255,255,.06);border-left-color:var(--tc,var(--blue));}
+.nav-ic{width:15px;text-align:center;font-size:12px;flex-shrink:0;}
+.sb-foot{padding:.65rem;border-top:1px solid var(--b1);}
+.btn-logout{width:100%;padding:.5rem;background:transparent;border:1px solid var(--b2);border-radius:var(--r);color:var(--t2);font-size:.75rem;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .14s;}
+.btn-logout:hover{color:var(--red);border-color:rgba(255,77,77,.3);}
+
+/* ── TOPBAR ─────────────────────────────────────────────── */
+.adm-topbar{background:var(--s1);border-bottom:1px solid var(--b1);padding:.6rem 1.2rem;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;}
+.adm-topbar-title{font-size:.97rem;font-weight:700;flex:1;}
+.btn-back-home{padding:5px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--t2);font-size:.76rem;display:flex;align-items:center;gap:4px;transition:all .14s;}
+.btn-back-home:hover{color:var(--tx);border-color:var(--b3);}
+
+/* ── PANELS ─────────────────────────────────────────────── */
+.adm-panel{display:none;flex:1;padding:1.2rem 1.4rem 3rem;}
+.adm-panel.active{display:block;}
+.ph{margin-bottom:1.1rem;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.ph-left{}
+.pt{font-size:1rem;font-weight:700;display:flex;align-items:center;gap:7px;}
+.ps{font-size:.74rem;color:var(--t3);margin-top:2px;}
+
+/* ── BUTTONS ─────────────────────────────────────────────── */
+.btn{padding:.48rem 1rem;border-radius:var(--r);border:1px solid var(--b2);background:var(--s2);color:var(--t2);font-size:.78rem;font-weight:500;transition:all .14s;display:inline-flex;align-items:center;gap:5px;}
+.btn:hover{color:var(--tx);border-color:var(--b3);}
+.btn-green{background:rgba(47,209,122,.1);border-color:rgba(47,209,122,.25);color:var(--green);}
+.btn-green:hover{background:rgba(47,209,122,.18);}
+.btn-red{background:rgba(255,77,77,.08);border-color:rgba(255,77,77,.2);color:var(--red);}
+.btn-red:hover{background:rgba(255,77,77,.15);}
+.btn-blue{background:rgba(79,163,255,.1);border-color:rgba(79,163,255,.25);color:var(--blue);}
+.btn-blue:hover{background:rgba(79,163,255,.18);}
+.btn-sm{padding:.3rem .7rem;font-size:.72rem;}
+
+/* ── TABLE ─────────────────────────────────────────────── */
+.tbl-wrap{background:var(--s2);border:1px solid var(--b1);border-radius:var(--rl);overflow:hidden;margin-bottom:1rem;}
+.tbl-toolbar{display:flex;align-items:center;gap:8px;padding:.7rem .9rem;border-bottom:1px solid var(--b1);flex-wrap:wrap;}
+.tbl-search{flex:1;min-width:150px;max-width:300px;background:var(--s3);border:1px solid var(--b2);border-radius:8px;padding:.4rem .75rem;color:var(--tx);font-size:.8rem;transition:border-color .15s;}
+.tbl-search:focus{outline:none;border-color:var(--blue);}
+.tbl-filter{background:var(--s3);border:1px solid var(--b2);border-radius:8px;padding:.38rem .7rem;color:var(--tx);font-size:.78rem;cursor:pointer;}
+.tbl-filter:focus{outline:none;}
+.tbl-count{margin-left:auto;font-size:.72rem;color:var(--t3);}
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;padding:.55rem .8rem;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);background:var(--s3);border-bottom:1px solid var(--b1);}
+td{padding:.55rem .8rem;border-bottom:1px solid var(--b1);font-size:.82rem;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+.td-de{font-weight:500;color:var(--tx);}
+.td-vi{color:var(--t2);}
+.td-note{color:var(--yellow);font-size:.73rem;font-style:italic;}
+.td-actions{white-space:nowrap;}
+.cat-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.66rem;font-weight:600;background:var(--s4);color:var(--t2);}
+.diff-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.66rem;font-weight:600;}
+.diff-easy{background:rgba(47,209,122,.12);color:var(--green);}
+.diff-med{background:rgba(240,192,64,.1);color:var(--yellow);}
+.diff-hard{background:rgba(255,77,77,.1);color:var(--red);}
+.empty-row td{text-align:center;padding:2rem;color:var(--t3);font-size:.82rem;}
+
+/* ── DIALOGUE LIST ─────────────────────────────────────── */
+.dial-item{background:var(--s2);border:1px solid var(--b1);border-radius:var(--rl);margin-bottom:.6rem;overflow:hidden;}
+.dial-head{padding:.7rem 1rem;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .12s;}
+.dial-head:hover{background:var(--s3);}
+.dial-icon{font-size:1.2rem;}
+.dial-title{flex:1;font-size:.87rem;font-weight:600;}
+.dial-meta{font-size:.68rem;color:var(--t3);}
+.dial-arrow{color:var(--t3);font-size:.85rem;transition:transform .2s;}
+.dial-item.open .dial-arrow{transform:rotate(90deg);}
+.dial-body{display:none;padding:.7rem 1rem 1rem;border-top:1px solid var(--b1);}
+.dial-item.open .dial-body{display:block;}
+.lines-tbl{width:100%;border-collapse:collapse;margin-bottom:.6rem;}
+.lines-tbl th{padding:.4rem .6rem;font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);background:var(--s3);border-bottom:1px solid var(--b1);}
+.lines-tbl td{padding:.4rem .6rem;border-bottom:1px solid var(--b1);font-size:.8rem;vertical-align:middle;}
+.lines-tbl tr:last-child td{border-bottom:none;}
+.role-badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:.64rem;font-weight:600;}
+.role-nurse{background:rgba(79,163,255,.12);color:var(--blue);}
+.role-patient{background:rgba(47,209,122,.1);color:var(--green);}
+.role-doctor{background:rgba(159,110,245,.12);color:var(--purple);}
+
+/* ── MODAL ─────────────────────────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem;}
+.overlay.on{display:flex;}
+.modal{background:var(--s2);border:1px solid var(--b2);border-radius:var(--rxl);padding:1.4rem;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh);}
+.modal-wide{max-width:700px;}
+.modal-title{font-size:.97rem;font-weight:700;margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid var(--b1);}
+.frow{margin-bottom:.85rem;}
+.flbl{font-size:.72rem;color:var(--t2);margin-bottom:4px;display:block;font-weight:500;}
+.finp{width:100%;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:.58rem .85rem;color:var(--tx);font-size:.85rem;transition:border-color .15s;}
+.finp:focus{outline:none;border-color:var(--blue);}
+textarea.finp{resize:vertical;min-height:70px;}
+select.finp{cursor:pointer;}
+.frow-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;}
+.modal-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:1.1rem;padding-top:.8rem;border-top:1px solid var(--b1);}
+.modal-err{background:rgba(255,77,77,.1);border:1px solid rgba(255,77,77,.2);border-radius:var(--r);padding:.5rem .75rem;font-size:.78rem;color:var(--red);margin-bottom:.7rem;display:none;}
+
+/* ── DIALOGUE LINES EDITOR ─────────────────────────────── */
+.line-editor{background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:.7rem;margin-bottom:.5rem;position:relative;}
+.line-editor-row{display:grid;grid-template-columns:100px 1fr 1fr;gap:.5rem;align-items:start;}
+.line-num{font-size:.65rem;color:var(--t3);padding-top:.7rem;}
+.line-remove{position:absolute;top:.5rem;right:.5rem;background:transparent;border:none;color:var(--t3);font-size:.9rem;cursor:pointer;transition:color .13s;}
+.line-remove:hover{color:var(--red);}
+.add-line-btn{background:transparent;border:1px dashed var(--b2);border-radius:var(--r);padding:.5rem;width:100%;color:var(--t3);font-size:.78rem;text-align:center;cursor:pointer;transition:all .13s;margin-top:.3rem;}
+.add-line-btn:hover{border-color:var(--blue);color:var(--blue);}
+
+/* ── TOAST ─────────────────────────────────────────────── */
+.toast{position:fixed;bottom:1.1rem;right:1.1rem;background:var(--s3);border:1px solid var(--b3);border-radius:var(--rl);padding:.65rem .95rem;font-size:.79rem;color:var(--tx);box-shadow:var(--sh);z-index:998;transform:translateY(16px);opacity:0;transition:all .22s;pointer-events:none;max-width:280px;}
+.toast.on{transform:translateY(0);opacity:1;}
+.toast.err{border-color:rgba(255,77,77,.3);background:rgba(255,77,77,.1);color:var(--red);}
+
+/* ── SETTINGS ─────────────────────────────────────────── */
+.settings-section{background:var(--s2);border:1px solid var(--b1);border-radius:var(--rl);padding:1.1rem;margin-bottom:1rem;}
+.settings-title{font-size:.83rem;font-weight:600;margin-bottom:.6rem;display:flex;align-items:center;gap:6px;}
+.settings-desc{font-size:.76rem;color:var(--t2);margin-bottom:.85rem;line-height:1.7;}
+.settings-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.warn-box{background:rgba(240,192,64,.07);border:1px solid rgba(240,192,64,.2);border-radius:var(--r);padding:.65rem .9rem;font-size:.77rem;color:var(--yellow);margin-bottom:.8rem;}
+.info-box{background:rgba(79,163,255,.07);border:1px solid rgba(79,163,255,.2);border-radius:var(--r);padding:.65rem .9rem;font-size:.77rem;color:var(--blue);margin-bottom:.8rem;}
+.progress-bar-wrap{height:6px;background:var(--b2);border-radius:3px;overflow:hidden;margin-top:.7rem;display:none;}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--teal));border-radius:3px;transition:width .3s;}
+
+/* ── USERS TABLE ─────────────────────────────────────────── */
+.role-select{background:var(--s3);border:1px solid var(--b2);border-radius:6px;padding:2px 6px;color:var(--tx);font-size:.75rem;cursor:pointer;}
+.role-tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.66rem;font-weight:600;}
+.role-super{background:rgba(255,133,51,.15);color:var(--orange);}
+.role-editor{background:rgba(79,163,255,.12);color:var(--blue);}
+.role-viewer{background:rgba(47,209,122,.1);color:var(--green);}
+.role-student{background:rgba(255,255,255,.07);color:var(--t2);}
+
+/* ── STAT CARDS ─────────────────────────────────────────── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:1.2rem;}
+.stat-card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--rl);padding:.85rem;text-align:center;}
+.stat-num{font-size:1.6rem;font-weight:700;background:linear-gradient(135deg,var(--blue),var(--teal));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1;}
+.stat-lbl{font-size:.65rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;}
+
+/* ── LOADING ─────────────────────────────────────────────── */
+.loading{text-align:center;padding:2rem;color:var(--t3);font-size:.82rem;}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid var(--b2);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin-right:6px;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── CONFIRM ─────────────────────────────────────────────── */
+.confirm-box{background:var(--s2);border:1px solid var(--b2);border-radius:var(--rxl);padding:1.4rem;width:100%;max-width:360px;box-shadow:var(--sh);}
+.confirm-title{font-size:.93rem;font-weight:700;margin-bottom:.4rem;}
+.confirm-sub{font-size:.78rem;color:var(--t2);margin-bottom:1.1rem;}
+.confirm-actions{display:flex;gap:6px;justify-content:flex-end;}
+
+/* ── RESPONSIVE ─────────────────────────────────────────── */
+@media(max-width:700px){
+  :root{--sidebar-w:0px;}
+  .adm-sidebar{transform:translateX(-100%);width:220px;transition:transform .25s;}
+  .adm-sidebar.open{transform:translateX(0);}
+  .adm-main{margin-left:0;}
+  .menu-btn{display:block!important;}
+  .frow-grid{grid-template-columns:1fr;}
+  .line-editor-row{grid-template-columns:70px 1fr;}
+}
+.menu-btn{display:none;padding:4px 6px;background:transparent;border:none;color:var(--t2);font-size:17px;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<!-- ════════════ LOGIN SCREEN ════════════ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1>🇩🇪 PflegeDeutsch<span class="login-badge">ADMIN</span></h1>
+      <p>Đăng nhập để quản lý nội dung</p>
+    </div>
+    <div class="login-err" id="loginErr"></div>
+    <label class="form-lbl">Email</label>
+    <input class="form-inp" type="email" id="loginEmail" placeholder="admin@example.com" autocomplete="email">
+    <label class="form-lbl">Mật khẩu</label>
+    <input class="form-inp" type="password" id="loginPwd" placeholder="••••••••" autocomplete="current-password">
+    <button class="btn-pri" id="loginBtn" onclick="doLogin()">Đăng nhập</button>
+    <div style="text-align:center;margin-top:1rem;">
+      <a href="index.html" style="font-size:.74rem;color:var(--t3);">← Quay lại trang học</a>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ ADMIN APP ════════════ -->
+<div id="adminApp">
+<div class="adm-layout">
+
+<!-- SIDEBAR -->
+<aside class="adm-sidebar" id="admSidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-title">🇩🇪 PflegeDeutsch<span style="display:inline-block;background:linear-gradient(135deg,var(--blue2),var(--purple));color:#fff;font-size:.52rem;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle;">ADMIN</span></div>
+    <div class="sb-logo-sub">Quản trị nội dung</div>
+  </div>
+  <div class="sb-user" id="sbUser">
+    <div class="sb-avatar" id="sbAvatar">?</div>
+    <div class="sb-user-info">
+      <div class="sb-user-nm" id="sbUserName">...</div>
+      <div class="sb-user-role" id="sbUserRole">...</div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="nav-sec">Tổng quan</div>
+    <div class="nav-it active" data-panel="overview" style="--tc:var(--blue)" onclick="showPanel('overview')"><span class="nav-ic">📊</span>Dashboard</div>
+    <div class="nav-sec">Nội dung</div>
+    <div class="nav-it" data-panel="phrases" style="--tc:var(--teal)" onclick="showPanel('phrases')"><span class="nav-ic">💬</span>Từ vựng & Cụm từ</div>
+    <div class="nav-it" data-panel="dialogues" style="--tc:var(--purple)" onclick="showPanel('dialogues')"><span class="nav-ic">🗣️</span>Hội thoại</div>
+    <div class="nav-sec">Hệ thống</div>
+    <div class="nav-it" data-panel="levels" style="--tc:var(--yellow)" onclick="showPanel('levels')"><span class="nav-ic">⭐</span>Levels</div>
+    <div class="nav-it" data-panel="badges" style="--tc:var(--purple)" onclick="showPanel('badges')"><span class="nav-ic">🏅</span>Badges</div>
+    <div class="nav-it admin-only" data-panel="users" style="--tc:var(--orange)" onclick="showPanel('users')"><span class="nav-ic">👥</span>Người dùng</div>
+    <div class="nav-it" data-panel="settings" style="--tc:var(--green)" onclick="showPanel('settings')"><span class="nav-ic">⚙️</span>Cài đặt</div>
+  </nav>
+  <div class="sb-foot">
+    <button class="btn-logout" onclick="doLogout()">🚪 Đăng xuất</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="adm-main">
+  <div class="adm-topbar">
+    <button class="menu-btn" onclick="document.getElementById('admSidebar').classList.toggle('open')">☰</button>
+    <div class="adm-topbar-title" id="topbarTitle">Dashboard</div>
+    <a href="index.html" class="btn-back-home">← Trang học</a>
+  </div>
+
+  <!-- ══ OVERVIEW ══ -->
+  <div class="adm-panel active" id="panel-overview">
+    <div class="ph"><div class="ph-left"><div class="pt">📊 Dashboard</div><div class="ps">Tổng quan nội dung hiện tại trong Supabase</div></div></div>
+    <div class="stat-grid" id="statsGrid">
+      <div class="stat-card"><div class="stat-num" id="st-phrases">—</div><div class="stat-lbl">Từ vựng/Cụm từ</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-dialogues">—</div><div class="stat-lbl">Hội thoại</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-lines">—</div><div class="stat-lbl">Dòng hội thoại</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-levels">—</div><div class="stat-lbl">Levels</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-badges">—</div><div class="stat-lbl">Badges</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-users">—</div><div class="stat-lbl">Người dùng</div></div>
+    </div>
+    <div class="info-box">💡 Tất cả thay đổi trong Admin sẽ được đồng bộ ngay lập tức về trang học qua Supabase Realtime.</div>
+    <div id="overviewCats"></div>
+  </div>
+
+  <!-- ══ PHRASES ══ -->
+  <div class="adm-panel" id="panel-phrases">
+    <div class="ph">
+      <div class="ph-left"><div class="pt">💬 Từ vựng & Cụm từ</div><div class="ps">Quản lý tất cả phrases — có thể lọc theo danh mục</div></div>
+      <button class="btn btn-green" onclick="openPhraseModal()">＋ Thêm mới</button>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-toolbar">
+        <input class="tbl-search" id="phraseSearch" type="text" placeholder="Tìm tiếng Đức hoặc Việt..." oninput="filterPhrases()">
+        <select class="tbl-filter" id="catFilter" onchange="filterPhrases()">
+          <option value="">Tất cả danh mục</option>
+        </select>
+        <select class="tbl-filter" id="groupFilter" onchange="filterPhrases()">
+          <option value="">Tất cả nhóm</option>
+        </select>
+        <span class="tbl-count" id="phraseCount"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="phrasesTable">
+          <thead><tr>
+            <th style="width:35%">Tiếng Đức</th>
+            <th style="width:30%">Tiếng Việt</th>
+            <th style="width:12%">Danh mục</th>
+            <th style="width:13%">Nhóm</th>
+            <th style="width:10%">Thao tác</th>
+          </tr></thead>
+          <tbody id="phrasesBody">
+            <tr><td colspan="5" class="loading"><span class="spin"></span>Đang tải...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ DIALOGUES ══ -->
+  <div class="adm-panel" id="panel-dialogues">
+    <div class="ph">
+      <div class="ph-left"><div class="pt">🗣️ Hội thoại</div><div class="ps">Quản lý các đoạn hội thoại và dòng thoại bên trong</div></div>
+      <button class="btn btn-green" onclick="openDialogueModal()">＋ Thêm hội thoại</button>
+    </div>
+    <div id="dialoguesList">
+      <div class="loading"><span class="spin"></span>Đang tải...</div>
+    </div>
+  </div>
+
+  <!-- ══ LEVELS ══ -->
+  <div class="adm-panel" id="panel-levels">
+    <div class="ph">
+      <div class="ph-left"><div class="pt">⭐ Levels</div><div class="ps">Cấu hình các mốc level và tên hiển thị</div></div>
+      <button class="btn btn-green" onclick="openLevelModal()">＋ Thêm level</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="levelsTable">
+        <thead><tr>
+          <th>Min XP</th><th>Tên level</th><th>Emoji</th><th>Thứ tự</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody id="levelsBody">
+          <tr><td colspan="5" class="loading"><span class="spin"></span>Đang tải...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ BADGES ══ -->
+  <div class="adm-panel" id="panel-badges">
+    <div class="ph">
+      <div class="ph-left"><div class="pt">🏅 Badges</div><div class="ps">Cấu hình huy hiệu thành tích</div></div>
+      <button class="btn btn-green" onclick="openBadgeModal()">＋ Thêm badge</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="badgesTable">
+        <thead><tr>
+          <th>Emoji</th><th>Tên</th><th>Code</th><th>Điều kiện</th><th>Giá trị</th><th>Thứ tự</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody id="badgesBody">
+          <tr><td colspan="7" class="loading"><span class="spin"></span>Đang tải...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ USERS ══ -->
+  <div class="adm-panel" id="panel-users">
+    <div class="ph">
+      <div class="ph-left"><div class="pt">👥 Người dùng</div><div class="ps">Xem và phân quyền người dùng (chỉ super_admin)</div></div>
+      <button class="btn btn-blue" onclick="loadUsers()">🔄 Làm mới</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="usersTable">
+        <thead><tr>
+          <th>Username</th><th>Họ tên</th><th>Email</th><th>Role</th><th>Ngày tạo</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody id="usersBody">
+          <tr><td colspan="6" class="loading"><span class="spin"></span>Đang tải...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ SETTINGS ══ -->
+  <div class="adm-panel" id="panel-settings">
+    <div class="ph"><div class="ph-left"><div class="pt">⚙️ Cài đặt</div><div class="ps">Nhập dữ liệu mặc định và quản lý hệ thống</div></div></div>
+
+    <div class="settings-section">
+      <div class="settings-title">📥 Nhập dữ liệu mặc định</div>
+      <div class="warn-box">⚠️ Chức năng này sẽ thêm toàn bộ dữ liệu mặc định vào Supabase. Nếu đã có dữ liệu, nó sẽ không bị xóa mà chỉ thêm mới.</div>
+      <div class="settings-desc">
+        Import từ <strong>seed-data.js</strong> — bao gồm tất cả từ vựng, cụm từ giao tiếp và hội thoại mẫu cho điều dưỡng tiếng Đức.
+      </div>
+      <div class="settings-row">
+        <button class="btn btn-blue" id="seedPhrasesBtn" onclick="seedPhrases()">📥 Import Từ vựng & Cụm từ</button>
+        <button class="btn btn-blue" id="seedDialoguesBtn" onclick="seedDialogues()">📥 Import Hội thoại</button>
+        <button class="btn btn-green" id="seedAllBtn" onclick="seedAll()">⚡ Import Tất cả</button>
+      </div>
+      <div class="progress-bar-wrap" id="seedProgress">
+        <div class="progress-bar-fill" id="seedProgressFill" style="width:0%"></div>
+      </div>
+      <div id="seedResult" style="margin-top:.7rem;font-size:.78rem;color:var(--t2);"></div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-title">🗑️ Xóa dữ liệu</div>
+      <div class="warn-box">⚠️ Không thể hoàn tác. Hãy chắc chắn trước khi thực hiện!</div>
+      <div class="settings-row">
+        <button class="btn btn-red" onclick="confirmDeleteAll('phrases')">🗑️ Xóa tất cả Từ vựng</button>
+        <button class="btn btn-red" onclick="confirmDeleteAll('dialogues')">🗑️ Xóa tất cả Hội thoại</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-title">🔑 Cấu hình Supabase</div>
+      <div class="settings-desc">Xem và kiểm tra kết nối Supabase hiện tại trong <code>config.js</code>.</div>
+      <div style="background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:.75rem;font-size:.76rem;color:var(--t2);font-family:monospace;" id="configInfo"></div>
+    </div>
+  </div>
+
+</div><!-- end adm-main -->
+</div><!-- end adm-layout -->
+</div><!-- end adminApp -->
+
+<!-- ════════ PHRASE MODAL ════════ -->
+<div class="overlay" id="phraseModal">
+  <div class="modal">
+    <div class="modal-title" id="phraseModalTitle">Thêm từ vựng / cụm từ</div>
+    <div class="modal-err" id="phraseModalErr"></div>
+    <div class="frow-grid">
+      <div class="frow">
+        <label class="flbl">Danh mục *</label>
+        <select class="finp" id="pm-cat"></select>
+      </div>
+      <div class="frow">
+        <label class="flbl">Nhóm *</label>
+        <input class="finp" id="pm-group" type="text" placeholder="VD: Chào hỏi, Triệu chứng...">
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flbl">Tiếng Đức *</label>
+      <textarea class="finp" id="pm-de" rows="2" placeholder="Câu hoặc từ tiếng Đức..."></textarea>
+    </div>
+    <div class="frow">
+      <label class="flbl">Tiếng Việt *</label>
+      <textarea class="finp" id="pm-vi" rows="2" placeholder="Nghĩa tiếng Việt..."></textarea>
+    </div>
+    <div class="frow">
+      <label class="flbl">Ghi chú (tuỳ chọn)</label>
+      <input class="finp" id="pm-note" type="text" placeholder="Ghi chú thêm...">
+    </div>
+    <div class="frow">
+      <label class="flbl">Thứ tự sắp xếp</label>
+      <input class="finp" id="pm-sort" type="number" value="0" min="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closePhraseModal()">Huỷ</button>
+      <button class="btn btn-green" id="pmSaveBtn" onclick="savePhrase()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ DIALOGUE MODAL ════════ -->
+<div class="overlay" id="dialogueModal">
+  <div class="modal modal-wide">
+    <div class="modal-title" id="dialogueModalTitle">Thêm hội thoại</div>
+    <div class="modal-err" id="dialogueModalErr"></div>
+    <div class="frow-grid">
+      <div class="frow">
+        <label class="flbl">Tiêu đề *</label>
+        <input class="finp" id="dm-title" type="text" placeholder="VD: Khám bệnh buổi sáng">
+      </div>
+      <div class="frow">
+        <label class="flbl">Icon</label>
+        <input class="finp" id="dm-icon" type="text" placeholder="💬" maxlength="4">
+      </div>
+    </div>
+    <div class="frow-grid">
+      <div class="frow">
+        <label class="flbl">Độ khó</label>
+        <select class="finp" id="dm-diff">
+          <option value="easy">Dễ</option>
+          <option value="medium">Trung bình</option>
+          <option value="hard">Khó</option>
+        </select>
+      </div>
+      <div class="frow">
+        <label class="flbl">Thứ tự</label>
+        <input class="finp" id="dm-sort" type="number" value="0" min="0">
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flbl">Dòng hội thoại</label>
+      <div id="linesEditor"></div>
+      <button class="add-line-btn" onclick="addLineRow()">＋ Thêm dòng thoại</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeDialogueModal()">Huỷ</button>
+      <button class="btn btn-green" id="dmSaveBtn" onclick="saveDialogue()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ LEVEL MODAL ════════ -->
+<div class="overlay" id="levelModal">
+  <div class="modal">
+    <div class="modal-title" id="levelModalTitle">Thêm level</div>
+    <div class="modal-err" id="levelModalErr"></div>
+    <div class="frow-grid">
+      <div class="frow">
+        <label class="flbl">Min XP *</label>
+        <input class="finp" id="lm-xp" type="number" min="0" placeholder="0">
+      </div>
+      <div class="frow">
+        <label class="flbl">Emoji</label>
+        <input class="finp" id="lm-emoji" type="text" placeholder="⭐" maxlength="4">
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flbl">Tên level *</label>
+      <input class="finp" id="lm-name" type="text" placeholder="VD: Anfänger">
+    </div>
+    <div class="frow">
+      <label class="flbl">Thứ tự</label>
+      <input class="finp" id="lm-sort" type="number" value="0" min="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeLevelModal()">Huỷ</button>
+      <button class="btn btn-green" id="lmSaveBtn" onclick="saveLevel()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ BADGE MODAL ════════ -->
+<div class="overlay" id="badgeModal">
+  <div class="modal">
+    <div class="modal-title" id="badgeModalTitle">Thêm badge</div>
+    <div class="modal-err" id="badgeModalErr"></div>
+    <div class="frow-grid">
+      <div class="frow">
+        <label class="flbl">Code (unique) *</label>
+        <input class="finp" id="bm-code" type="text" placeholder="VD: flash10">
+      </div>
+      <div class="frow">
+        <label class="flbl">Emoji</label>
+        <input class="finp" id="bm-emoji" type="text" placeholder="🏅" maxlength="4">
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flbl">Tên hiển thị *</label>
+      <input class="finp" id="bm-name" type="text" placeholder="VD: 10 thẻ flashcard">
+    </div>
+    <div class="frow-grid">
+      <div class="frow">
+        <label class="flbl">Loại điều kiện</label>
+        <select class="finp" id="bm-ctype">
+          <option value="xp">XP</option>
+          <option value="flashDone">Flashcard hoàn thành</option>
+          <option value="exDone">Bài tập hoàn thành</option>
+          <option value="exPerfectRound">Vòng hoàn hảo</option>
+          <option value="streak">Streak ngày</option>
+          <option value="mastered">Đã thuộc</option>
+          <option value="roleplays">Roleplay</option>
+          <option value="dialogues">Hội thoại xem</option>
+        </select>
+      </div>
+      <div class="frow">
+        <label class="flbl">Giá trị điều kiện *</label>
+        <input class="finp" id="bm-cval" type="number" min="1" placeholder="VD: 10">
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flbl">Thứ tự</label>
+      <input class="finp" id="bm-sort" type="number" value="0" min="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeBadgeModal()">Huỷ</button>
+      <button class="btn btn-green" id="bmSaveBtn" onclick="saveBadge()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ CONFIRM MODAL ════════ -->
+<div class="overlay" id="confirmModal">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirmTitle">Xác nhận xóa?</div>
+    <div class="confirm-sub" id="confirmSub">Hành động này không thể hoàn tác.</div>
+    <div class="confirm-actions">
+      <button class="btn" onclick="closeConfirm()">Huỷ</button>
+      <button class="btn btn-red" id="confirmOkBtn">Xóa</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="seed-data.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════
+// INIT SUPABASE
+// ══════════════════════════════════════════════════════════
+const SB_URL = window.SUPABASE_URL;
+const SB_KEY = window.SUPABASE_ANON_KEY;
+const sb = window.supabase.createClient(SB_URL, SB_KEY);
+
+const CAT_META = {
+  patient:        {l:'Bệnh nhân',     ic:'👤'},
+  colleague:      {l:'Đồng nghiệp',   ic:'👥'},
+  handover:       {l:'Bàn giao ca',   ic:'🔄'},
+  emergency:      {l:'Khẩn cấp',      ic:'🚨'},
+  vocab:          {l:'Chuyên ngành',  ic:'📚'},
+  anatomy:        {l:'Giải phẫu',     ic:'🫀'},
+  medication:     {l:'Thuốc & ĐT',    ic:'💊'},
+  documentation:  {l:'Hồ sơ',         ic:'📋'},
+  nursing_process:{l:'Quy trình ĐD',  ic:'🩺'},
+  mental:         {l:'Tâm thần & Lão',ic:'🧠'},
+};
+const COND_LABELS = {
+  xp:'XP', flashDone:'Flashcard', exDone:'Bài tập',
+  exPerfectRound:'Vòng hoàn hảo', streak:'Streak',
+  mastered:'Đã thuộc', roleplays:'Roleplay', dialogues:'Hội thoại'
+};
+const ROLES = ['super_admin','editor','viewer','student'];
+
+let currentUser = null;
+let currentProfile = null;
+let allPhrases = [];
+let allDialogues = [];
+let editPhraseId = null;
+let editDialogueId = null;
+let editLevelId = null;
+let editBadgeId = null;
+
+// ══════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════
+let toastTimer;
+function toast(msg, isErr=false){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast on' + (isErr?' err':'');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.className='toast', 3000);
+}
+
+// ══════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pwd   = document.getElementById('loginPwd').value;
+  const err   = document.getElementById('loginErr');
+  const btn   = document.getElementById('loginBtn');
+  err.style.display='none';
+  if(!email||!pwd){err.textContent='Vui lòng nhập email và mật khẩu.';err.style.display='block';return;}
+  btn.disabled=true; btn.textContent='Đang đăng nhập...';
+  const {data, error} = await sb.auth.signInWithPassword({email, password:pwd});
+  btn.disabled=false; btn.textContent='Đăng nhập';
+  if(error){err.textContent=error.message;err.style.display='block';return;}
+  currentUser = data.user;
+  await initApp();
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+  currentUser = null; currentProfile = null;
+  document.getElementById('adminApp').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+}
+
+document.getElementById('loginPwd').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.getElementById('loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPwd').focus();});
+
+// ══════════════════════════════════════════════════════════
+// INIT APP
+// ══════════════════════════════════════════════════════════
+async function initApp(){
+  // Load profile
+  const {data:profile} = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  if(!profile){
+    document.getElementById('loginErr').textContent='Không tìm thấy profile. Vui lòng kiểm tra lại.';
+    document.getElementById('loginErr').style.display='block';
+    return;
+  }
+  if(!['super_admin','editor'].includes(profile.role)){
+    document.getElementById('loginErr').textContent='Bạn không có quyền truy cập Admin Panel (cần role editor hoặc super_admin).';
+    document.getElementById('loginErr').style.display='block';
+    await sb.auth.signOut();
+    return;
+  }
+  currentProfile = profile;
+  // Show app
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('adminApp').style.display='block';
+  // Update sidebar user
+  document.getElementById('sbAvatar').textContent = (profile.username||'?')[0].toUpperCase();
+  document.getElementById('sbUserName').textContent = profile.full_name || profile.username;
+  document.getElementById('sbUserRole').textContent = profile.role;
+  // Hide users tab for non-super_admin
+  if(profile.role!=='super_admin'){
+    document.querySelectorAll('.admin-only').forEach(el=>el.style.display='none');
+  }
+  // Setup cat filter
+  setupCatFilter();
+  // Config info
+  document.getElementById('configInfo').textContent =
+    'URL: ' + SB_URL + '\nKey: ' + SB_KEY.slice(0,30) + '...';
+  // Load data
+  loadOverview();
+  loadPhrases();
+}
+
+// ══════════════════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════════════════
+const PANEL_TITLES = {
+  overview:'Dashboard', phrases:'Từ vựng & Cụm từ', dialogues:'Hội thoại',
+  levels:'Levels', badges:'Badges', users:'Người dùng', settings:'Cài đặt'
+};
+function showPanel(id){
+  document.querySelectorAll('.adm-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-it').forEach(n=>n.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  const ni = document.querySelector(`.nav-it[data-panel="${id}"]`);
+  if(ni) ni.classList.add('active');
+  document.getElementById('topbarTitle').textContent = PANEL_TITLES[id]||id;
+  document.getElementById('admSidebar').classList.remove('open');
+  // Lazy load
+  if(id==='dialogues') loadDialogues();
+  else if(id==='levels') loadLevels();
+  else if(id==='badges') loadBadges();
+  else if(id==='users')  loadUsers();
+  else if(id==='overview') loadOverview();
+}
+
+// ══════════════════════════════════════════════════════════
+// OVERVIEW
+// ══════════════════════════════════════════════════════════
+async function loadOverview(){
+  const [p,d,dl,l,b,u] = await Promise.all([
+    sb.from('phrases').select('*', {count:'exact',head:true}),
+    sb.from('dialogues').select('*', {count:'exact',head:true}),
+    sb.from('dialogue_lines').select('*', {count:'exact',head:true}),
+    sb.from('levels').select('*', {count:'exact',head:true}),
+    sb.from('badges').select('*', {count:'exact',head:true}),
+    sb.from('profiles').select('*', {count:'exact',head:true}),
+  ]);
+  document.getElementById('st-phrases').textContent = p.count??'—';
+  document.getElementById('st-dialogues').textContent = d.count??'—';
+  document.getElementById('st-lines').textContent = dl.count??'—';
+  document.getElementById('st-levels').textContent = l.count??'—';
+  document.getElementById('st-badges').textContent = b.count??'—';
+  document.getElementById('st-users').textContent = u.count??'—';
+  // Category breakdown
+  const {data:catData} = await sb.from('phrases').select('category');
+  if(catData){
+    const counts = {};
+    catData.forEach(r=>counts[r.category]=(counts[r.category]||0)+1);
+    const html = Object.entries(CAT_META).map(([k,v])=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:.5rem 0;border-bottom:1px solid var(--b1);">
+        <span style="font-size:1rem;width:24px;">${v.ic}</span>
+        <span style="flex:1;font-size:.82rem;">${v.l}</span>
+        <span style="font-size:.8rem;font-weight:600;color:var(--blue)">${counts[k]||0} mục</span>
+      </div>`).join('');
+    document.getElementById('overviewCats').innerHTML=`
+      <div style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--rl);padding:.9rem 1rem;">
+        <div style="font-size:.8rem;font-weight:600;margin-bottom:.6rem;">Phân bổ theo danh mục</div>
+        ${html}
+      </div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// PHRASES
+// ══════════════════════════════════════════════════════════
+async function loadPhrases(){
+  const {data, error} = await sb.from('phrases').select('*').order('category').order('group_name').order('sort_order').order('id');
+  if(error){toast('Lỗi tải phrases: '+error.message,true);return;}
+  allPhrases = data||[];
+  updateGroupFilter();
+  renderPhrases(allPhrases);
+}
+
+function setupCatFilter(){
+  const sel = document.getElementById('catFilter');
+  sel.innerHTML = '<option value="">Tất cả danh mục</option>';
+  Object.entries(CAT_META).forEach(([k,v])=>{
+    const o=document.createElement('option');o.value=k;o.textContent=v.ic+' '+v.l;sel.appendChild(o);
+  });
+  // Populate phrase modal select
+  const pms = document.getElementById('pm-cat');
+  pms.innerHTML='';
+  Object.entries(CAT_META).forEach(([k,v])=>{
+    const o=document.createElement('option');o.value=k;o.textContent=v.ic+' '+v.l;pms.appendChild(o);
+  });
+}
+
+function updateGroupFilter(){
+  const cat = document.getElementById('catFilter').value;
+  const sel = document.getElementById('groupFilter');
+  const src = cat ? allPhrases.filter(p=>p.category===cat) : allPhrases;
+  const groups = [...new Set(src.map(p=>p.group_name))].sort();
+  sel.innerHTML = '<option value="">Tất cả nhóm</option>';
+  groups.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
+}
+
+function filterPhrases(){
+  updateGroupFilter();
+  const q = document.getElementById('phraseSearch').value.toLowerCase();
+  const cat = document.getElementById('catFilter').value;
+  const grp = document.getElementById('groupFilter').value;
+  const filtered = allPhrases.filter(p=>{
+    if(cat && p.category!==cat) return false;
+    if(grp && p.group_name!==grp) return false;
+    if(q && !p.de.toLowerCase().includes(q) && !p.vi.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  renderPhrases(filtered);
+}
+
+function renderPhrases(list){
+  document.getElementById('phraseCount').textContent = list.length + ' mục';
+  const body = document.getElementById('phrasesBody');
+  if(!list.length){
+    body.innerHTML='<tr><td colspan="5" class="empty-row">Không có kết quả</td></tr>';
+    return;
+  }
+  body.innerHTML = list.map(p=>`
+    <tr>
+      <td class="td-de">${esc(p.de)}<br>${p.note?'<span class="td-note">💡 '+esc(p.note)+'</span>':''}</td>
+      <td class="td-vi">${esc(p.vi)}</td>
+      <td><span class="cat-badge">${CAT_META[p.category]?.ic||''} ${CAT_META[p.category]?.l||p.category}</span></td>
+      <td style="color:var(--t2);font-size:.77rem;">${esc(p.group_name)}</td>
+      <td class="td-actions">
+        <button class="btn btn-blue btn-sm" onclick="openPhraseModal(${p.id})">✏️</button>
+        <button class="btn btn-red btn-sm" onclick="deletePhrase(${p.id})">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openPhraseModal(id=null){
+  editPhraseId = id;
+  document.getElementById('phraseModalTitle').textContent = id?'Sửa từ vựng / cụm từ':'Thêm từ vựng / cụm từ';
+  document.getElementById('phraseModalErr').style.display='none';
+  if(id){
+    const p = allPhrases.find(x=>x.id===id);
+    if(!p) return;
+    document.getElementById('pm-cat').value = p.category;
+    document.getElementById('pm-group').value = p.group_name;
+    document.getElementById('pm-de').value = p.de;
+    document.getElementById('pm-vi').value = p.vi;
+    document.getElementById('pm-note').value = p.note||'';
+    document.getElementById('pm-sort').value = p.sort_order||0;
+  } else {
+    document.getElementById('pm-cat').value = 'patient';
+    document.getElementById('pm-group').value = '';
+    document.getElementById('pm-de').value = '';
+    document.getElementById('pm-vi').value = '';
+    document.getElementById('pm-note').value = '';
+    document.getElementById('pm-sort').value = '0';
+  }
+  document.getElementById('phraseModal').classList.add('on');
+  setTimeout(()=>document.getElementById('pm-de').focus(),100);
+}
+function closePhraseModal(){document.getElementById('phraseModal').classList.remove('on');}
+document.getElementById('phraseModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closePhraseModal();});
+
+async function savePhrase(){
+  const cat  = document.getElementById('pm-cat').value;
+  const grp  = document.getElementById('pm-group').value.trim();
+  const de   = document.getElementById('pm-de').value.trim();
+  const vi   = document.getElementById('pm-vi').value.trim();
+  const note = document.getElementById('pm-note').value.trim();
+  const sort = parseInt(document.getElementById('pm-sort').value)||0;
+  const errEl = document.getElementById('phraseModalErr');
+  errEl.style.display='none';
+  if(!grp||!de||!vi){errEl.textContent='Vui lòng điền đủ Nhóm, Tiếng Đức và Tiếng Việt.';errEl.style.display='block';return;}
+  const btn = document.getElementById('pmSaveBtn');
+  btn.disabled=true; btn.textContent='Đang lưu...';
+  const payload = {category:cat, group_name:grp, de, vi, sort_order:sort};
+  if(note) payload.note=note; else payload.note=null;
+  let error;
+  if(editPhraseId){
+    ({error} = await sb.from('phrases').update(payload).eq('id', editPhraseId));
+  } else {
+    ({error} = await sb.from('phrases').insert(payload));
+  }
+  btn.disabled=false; btn.textContent='Lưu';
+  if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';return;}
+  closePhraseModal();
+  toast(editPhraseId?'✓ Đã cập nhật!':'✓ Đã thêm mới!');
+  await loadPhrases();
+  filterPhrases();
+}
+
+async function deletePhrase(id){
+  confirm2('Xóa mục này?','Dữ liệu sẽ bị xóa vĩnh viễn.',async()=>{
+    const {error} = await sb.from('phrases').delete().eq('id',id);
+    if(error){toast('Lỗi: '+error.message,true);return;}
+    toast('🗑️ Đã xóa!');
+    await loadPhrases(); filterPhrases();
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// DIALOGUES
+// ══════════════════════════════════════════════════════════
+async function loadDialogues(){
+  document.getElementById('dialoguesList').innerHTML='<div class="loading"><span class="spin"></span>Đang tải...</div>';
+  const {data, error} = await sb.from('dialogues').select('*, dialogue_lines(*)').order('sort_order').order('id');
+  if(error){toast('Lỗi tải hội thoại: '+error.message,true);return;}
+  allDialogues = data||[];
+  renderDialogues();
+}
+
+function renderDialogues(){
+  const list = allDialogues;
+  if(!list.length){
+    document.getElementById('dialoguesList').innerHTML='<div style="text-align:center;padding:2rem;color:var(--t3);">Chưa có hội thoại nào.</div>';
+    return;
+  }
+  const diffMap={easy:'Dễ',medium:'Trung bình',hard:'Khó'};
+  const diffCls={easy:'diff-easy',medium:'diff-med',hard:'diff-hard'};
+  document.getElementById('dialoguesList').innerHTML = list.map(d=>{
+    const lines = (d.dialogue_lines||[]).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+    return `
+    <div class="dial-item" id="di-${d.id}">
+      <div class="dial-head" onclick="toggleDial(${d.id})">
+        <span class="dial-icon">${esc(d.icon||'💬')}</span>
+        <span class="dial-title">${esc(d.title)}</span>
+        <span class="diff-badge ${diffCls[d.difficulty]||'diff-easy'}">${diffMap[d.difficulty]||d.difficulty}</span>
+        <span class="dial-meta">${lines.length} dòng</span>
+        <span style="display:flex;gap:5px;margin-left:8px;">
+          <button class="btn btn-blue btn-sm" onclick="event.stopPropagation();openDialogueModal(${d.id})">✏️</button>
+          <button class="btn btn-red btn-sm" onclick="event.stopPropagation();deleteDialogue(${d.id})">🗑️</button>
+        </span>
+        <span class="dial-arrow">›</span>
+      </div>
+      <div class="dial-body">
+        ${lines.length?`
+        <table class="lines-tbl">
+          <thead><tr><th>#</th><th>Role</th><th>Tiếng Đức</th><th>Tiếng Việt</th></tr></thead>
+          <tbody>
+            ${lines.map((l,i)=>`
+              <tr>
+                <td style="color:var(--t3);font-size:.72rem;">${i+1}</td>
+                <td><span class="role-badge role-${l.role||'nurse'}">${esc(l.role||'nurse')}</span></td>
+                <td class="td-de">${esc(l.de)}</td>
+                <td class="td-vi">${esc(l.vi)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`:'<div style="color:var(--t3);font-size:.78rem;padding:.4rem 0;">Chưa có dòng thoại nào.</div>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleDial(id){
+  const el = document.getElementById('di-'+id);
+  if(el) el.classList.toggle('open');
+}
+
+// Dialogue modal
+let lineRows = [];
+function openDialogueModal(id=null){
+  editDialogueId = id;
+  lineRows = [];
+  document.getElementById('dialogueModalTitle').textContent = id?'Sửa hội thoại':'Thêm hội thoại';
+  document.getElementById('dialogueModalErr').style.display='none';
+  if(id){
+    const d = allDialogues.find(x=>x.id===id);
+    if(!d) return;
+    document.getElementById('dm-title').value = d.title;
+    document.getElementById('dm-icon').value  = d.icon||'💬';
+    document.getElementById('dm-diff').value  = d.difficulty||'easy';
+    document.getElementById('dm-sort').value  = d.sort_order||0;
+    const lines = (d.dialogue_lines||[]).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+    lines.forEach(l=>addLineRow(l));
+  } else {
+    document.getElementById('dm-title').value='';
+    document.getElementById('dm-icon').value='💬';
+    document.getElementById('dm-diff').value='easy';
+    document.getElementById('dm-sort').value='0';
+    document.getElementById('linesEditor').innerHTML='';
+    addLineRow(); addLineRow();
+  }
+  document.getElementById('dialogueModal').classList.add('on');
+}
+function closeDialogueModal(){document.getElementById('dialogueModal').classList.remove('on');}
+document.getElementById('dialogueModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDialogueModal();});
+
+let lineIdx=0;
+function addLineRow(data=null){
+  const id='lr-'+(lineIdx++);
+  lineRows.push(id);
+  const editor = document.getElementById('linesEditor');
+  const div=document.createElement('div');
+  div.className='line-editor';div.id=id;
+  div.innerHTML=`
+    <button class="line-remove" onclick="removeLine('${id}')" title="Xóa dòng này">✕</button>
+    <div class="line-editor-row">
+      <div>
+        <label class="flbl" style="font-size:.65rem;">Role</label>
+        <select class="finp" style="padding:.35rem .5rem;font-size:.78rem;" data-field="role">
+          <option value="nurse">🏥 nurse</option>
+          <option value="patient">🤒 patient</option>
+          <option value="doctor">👨‍⚕️ doctor</option>
+        </select>
+      </div>
+      <div>
+        <label class="flbl" style="font-size:.65rem;">Tiếng Đức *</label>
+        <input class="finp" style="padding:.35rem .6rem;font-size:.82rem;" type="text" data-field="de" placeholder="..." value="${esc(data?.de||'')}">
+      </div>
+      <div>
+        <label class="flbl" style="font-size:.65rem;">Tiếng Việt *</label>
+        <input class="finp" style="padding:.35rem .6rem;font-size:.82rem;" type="text" data-field="vi" placeholder="..." value="${esc(data?.vi||'')}">
+      </div>
+    </div>`;
+  if(data?.role) div.querySelector('[data-field="role"]').value=data.role;
+  editor.appendChild(div);
+}
+function removeLine(id){
+  lineRows=lineRows.filter(r=>r!==id);
+  const el=document.getElementById(id);if(el)el.remove();
+}
+
+async function saveDialogue(){
+  const title = document.getElementById('dm-title').value.trim();
+  const icon  = document.getElementById('dm-icon').value.trim()||'💬';
+  const diff  = document.getElementById('dm-diff').value;
+  const sort  = parseInt(document.getElementById('dm-sort').value)||0;
+  const errEl = document.getElementById('dialogueModalErr');
+  errEl.style.display='none';
+  if(!title){errEl.textContent='Vui lòng nhập tiêu đề.';errEl.style.display='block';return;}
+  // Collect lines
+  const lines=[];
+  for(const lid of lineRows){
+    const el=document.getElementById(lid);if(!el)continue;
+    const role=el.querySelector('[data-field="role"]').value;
+    const de=el.querySelector('[data-field="de"]').value.trim();
+    const vi=el.querySelector('[data-field="vi"]').value.trim();
+    if(de&&vi) lines.push({role,de,vi});
+  }
+  const btn=document.getElementById('dmSaveBtn');
+  btn.disabled=true;btn.textContent='Đang lưu...';
+  let dialId=editDialogueId;
+  if(dialId){
+    const {error}=await sb.from('dialogues').update({title,icon,difficulty:diff,sort_order:sort}).eq('id',dialId);
+    if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Lưu';return;}
+    // Delete old lines, re-insert
+    await sb.from('dialogue_lines').delete().eq('dialogue_id',dialId);
+  } else {
+    const {data,error}=await sb.from('dialogues').insert({title,icon,difficulty:diff,sort_order:sort}).select().single();
+    if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Lưu';return;}
+    dialId=data.id;
+  }
+  if(lines.length){
+    const linesPayload=lines.map((l,i)=>({dialogue_id:dialId,role:l.role,de:l.de,vi:l.vi,sort_order:i}));
+    const {error}=await sb.from('dialogue_lines').insert(linesPayload);
+    if(error){errEl.textContent='Lỗi khi lưu dòng thoại: '+error.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Lưu';return;}
+  }
+  btn.disabled=false;btn.textContent='Lưu';
+  closeDialogueModal();
+  toast(editDialogueId?'✓ Đã cập nhật hội thoại!':'✓ Đã thêm hội thoại!');
+  await loadDialogues();
+}
+
+async function deleteDialogue(id){
+  confirm2('Xóa hội thoại này?','Tất cả dòng thoại bên trong cũng sẽ bị xóa.',async()=>{
+    const {error}=await sb.from('dialogues').delete().eq('id',id);
+    if(error){toast('Lỗi: '+error.message,true);return;}
+    toast('🗑️ Đã xóa hội thoại!');
+    await loadDialogues();
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// LEVELS
+// ══════════════════════════════════════════════════════════
+async function loadLevels(){
+  const {data,error}=await sb.from('levels').select('*').order('min_xp');
+  if(error){toast('Lỗi: '+error.message,true);return;}
+  const body=document.getElementById('levelsBody');
+  if(!data||!data.length){body.innerHTML='<tr><td colspan="5" class="empty-row">Chưa có level nào.</td></tr>';return;}
+  body.innerHTML=data.map(l=>`
+    <tr>
+      <td><strong>${l.min_xp}</strong> XP</td>
+      <td>${esc(l.name)}</td>
+      <td style="font-size:1.2rem;">${esc(l.emoji)}</td>
+      <td style="color:var(--t3);">${l.sort_order}</td>
+      <td class="td-actions">
+        <button class="btn btn-blue btn-sm" onclick="openLevelModal(${JSON.stringify(l).replace(/"/g,'&quot;')})">✏️</button>
+        <button class="btn btn-red btn-sm" onclick="deleteLevel(${l.id})">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openLevelModal(data=null){
+  editLevelId = data?.id||null;
+  document.getElementById('levelModalTitle').textContent = data?'Sửa level':'Thêm level';
+  document.getElementById('levelModalErr').style.display='none';
+  document.getElementById('lm-xp').value   = data?.min_xp??'';
+  document.getElementById('lm-name').value = data?.name||'';
+  document.getElementById('lm-emoji').value= data?.emoji||'⭐';
+  document.getElementById('lm-sort').value = data?.sort_order??0;
+  document.getElementById('levelModal').classList.add('on');
+}
+function closeLevelModal(){document.getElementById('levelModal').classList.remove('on');}
+document.getElementById('levelModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeLevelModal();});
+
+async function saveLevel(){
+  const xp   = parseInt(document.getElementById('lm-xp').value);
+  const name = document.getElementById('lm-name').value.trim();
+  const emoji= document.getElementById('lm-emoji').value.trim()||'⭐';
+  const sort = parseInt(document.getElementById('lm-sort').value)||0;
+  const errEl= document.getElementById('levelModalErr');
+  errEl.style.display='none';
+  if(isNaN(xp)||!name){errEl.textContent='Vui lòng điền Min XP và Tên.';errEl.style.display='block';return;}
+  const btn=document.getElementById('lmSaveBtn');
+  btn.disabled=true;btn.textContent='Đang lưu...';
+  let error;
+  if(editLevelId){
+    ({error}=await sb.from('levels').update({min_xp:xp,name,emoji,sort_order:sort}).eq('id',editLevelId));
+  } else {
+    ({error}=await sb.from('levels').insert({min_xp:xp,name,emoji,sort_order:sort}));
+  }
+  btn.disabled=false;btn.textContent='Lưu';
+  if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';return;}
+  closeLevelModal();
+  toast(editLevelId?'✓ Đã cập nhật level!':'✓ Đã thêm level!');
+  loadLevels();
+}
+
+async function deleteLevel(id){
+  confirm2('Xóa level này?','',async()=>{
+    const {error}=await sb.from('levels').delete().eq('id',id);
+    if(error){toast('Lỗi: '+error.message,true);return;}
+    toast('🗑️ Đã xóa!'); loadLevels();
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// BADGES
+// ══════════════════════════════════════════════════════════
+async function loadBadges(){
+  const {data,error}=await sb.from('badges').select('*').order('sort_order').order('id');
+  if(error){toast('Lỗi: '+error.message,true);return;}
+  const body=document.getElementById('badgesBody');
+  if(!data||!data.length){body.innerHTML='<tr><td colspan="7" class="empty-row">Chưa có badge nào.</td></tr>';return;}
+  body.innerHTML=data.map(b=>`
+    <tr>
+      <td style="font-size:1.2rem;">${esc(b.emoji)}</td>
+      <td>${esc(b.name)}</td>
+      <td style="color:var(--t3);font-size:.75rem;font-family:monospace;">${esc(b.code)}</td>
+      <td style="color:var(--t2);font-size:.76rem;">${COND_LABELS[b.condition_type]||b.condition_type}</td>
+      <td style="color:var(--yellow);font-weight:600;">${b.condition_value}</td>
+      <td style="color:var(--t3);">${b.sort_order}</td>
+      <td class="td-actions">
+        <button class="btn btn-blue btn-sm" onclick="openBadgeModal(${JSON.stringify(b).replace(/"/g,'&quot;')})">✏️</button>
+        <button class="btn btn-red btn-sm" onclick="deleteBadge(${b.id})">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openBadgeModal(data=null){
+  editBadgeId = data?.id||null;
+  document.getElementById('badgeModalTitle').textContent = data?'Sửa badge':'Thêm badge';
+  document.getElementById('badgeModalErr').style.display='none';
+  document.getElementById('bm-code').value  = data?.code||'';
+  document.getElementById('bm-emoji').value = data?.emoji||'🏅';
+  document.getElementById('bm-name').value  = data?.name||'';
+  document.getElementById('bm-ctype').value = data?.condition_type||'xp';
+  document.getElementById('bm-cval').value  = data?.condition_value??'';
+  document.getElementById('bm-sort').value  = data?.sort_order??0;
+  document.getElementById('badgeModal').classList.add('on');
+}
+function closeBadgeModal(){document.getElementById('badgeModal').classList.remove('on');}
+document.getElementById('badgeModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeBadgeModal();});
+
+async function saveBadge(){
+  const code  = document.getElementById('bm-code').value.trim();
+  const emoji = document.getElementById('bm-emoji').value.trim()||'🏅';
+  const name  = document.getElementById('bm-name').value.trim();
+  const ctype = document.getElementById('bm-ctype').value;
+  const cval  = parseInt(document.getElementById('bm-cval').value);
+  const sort  = parseInt(document.getElementById('bm-sort').value)||0;
+  const errEl = document.getElementById('badgeModalErr');
+  errEl.style.display='none';
+  if(!code||!name||isNaN(cval)){errEl.textContent='Vui lòng điền Code, Tên và Giá trị điều kiện.';errEl.style.display='block';return;}
+  const btn=document.getElementById('bmSaveBtn');
+  btn.disabled=true;btn.textContent='Đang lưu...';
+  let error;
+  const payload={code,emoji,name,condition_type:ctype,condition_value:cval,sort_order:sort};
+  if(editBadgeId){
+    ({error}=await sb.from('badges').update(payload).eq('id',editBadgeId));
+  } else {
+    ({error}=await sb.from('badges').insert(payload));
+  }
+  btn.disabled=false;btn.textContent='Lưu';
+  if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';return;}
+  closeBadgeModal();
+  toast(editBadgeId?'✓ Đã cập nhật badge!':'✓ Đã thêm badge!');
+  loadBadges();
+}
+
+async function deleteBadge(id){
+  confirm2('Xóa badge này?','',async()=>{
+    const {error}=await sb.from('badges').delete().eq('id',id);
+    if(error){toast('Lỗi: '+error.message,true);return;}
+    toast('🗑️ Đã xóa!'); loadBadges();
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// USERS (super_admin only)
+// ══════════════════════════════════════════════════════════
+async function loadUsers(){
+  const body=document.getElementById('usersBody');
+  body.innerHTML='<tr><td colspan="6" class="loading"><span class="spin"></span>Đang tải...</td></tr>';
+  // Get profiles with auth emails via admin (only works if RLS allows)
+  const {data,error}=await sb.from('profiles').select('*').order('created_at');
+  if(error){body.innerHTML='<tr><td colspan="6" class="empty-row">Không thể tải (kiểm tra RLS)</td></tr>';return;}
+  if(!data||!data.length){body.innerHTML='<tr><td colspan="6" class="empty-row">Chưa có người dùng nào.</td></tr>';return;}
+  const roleCls={super_admin:'role-super',editor:'role-editor',viewer:'role-viewer',student:'role-student'};
+  body.innerHTML=data.map(u=>`
+    <tr>
+      <td style="font-weight:600;">${esc(u.username)}</td>
+      <td>${esc(u.full_name||'—')}</td>
+      <td style="color:var(--t3);font-size:.75rem;">${esc(u.id)}</td>
+      <td><span class="role-tag ${roleCls[u.role]||''}">${esc(u.role)}</span></td>
+      <td style="color:var(--t3);font-size:.74rem;">${new Date(u.created_at).toLocaleDateString('vi-VN')}</td>
+      <td>
+        <select class="role-select" onchange="changeUserRole('${u.id}',this.value)">
+          ${ROLES.map(r=>`<option value="${r}" ${r===u.role?'selected':''}>${r}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`).join('');
+}
+
+async function changeUserRole(uid, role){
+  const {error}=await sb.from('profiles').update({role}).eq('id',uid);
+  if(error){toast('Lỗi đổi role: '+error.message,true);}
+  else toast('✓ Đã đổi role!');
+}
+
+// ══════════════════════════════════════════════════════════
+// SETTINGS — SEED
+// ══════════════════════════════════════════════════════════
+async function seedPhrases(){
+  const btn=document.getElementById('seedPhrasesBtn');
+  if(!window.SEED_DATA){toast('Không tìm thấy seed-data.js',true);return;}
+  btn.disabled=true;btn.textContent='Đang import...';
+  showSeedProgress(0);
+  const cats=Object.keys(window.SEED_DATA);
+  let total=0,done=0;
+  cats.forEach(c=>window.SEED_DATA[c].forEach(g=>total+=g.i.length));
+  let inserted=0;
+  for(const cat of cats){
+    const groups=window.SEED_DATA[cat];
+    for(const g of groups){
+      const batch=g.i.map((item,idx)=>({category:cat,group_name:g.g,de:item.de,vi:item.vi,note:item.n||null,sort_order:idx}));
+      const {error}=await sb.from('phrases').upsert(batch,{onConflict:'category,group_name,de',ignoreDuplicates:true});
+      if(error){toast('Lỗi: '+error.message,true);}
+      inserted+=batch.length;
+      showSeedProgress(Math.round(inserted/total*100));
+    }
+  }
+  btn.disabled=false;btn.textContent='📥 Import Từ vựng & Cụm từ';
+  hideSeedProgress();
+  document.getElementById('seedResult').textContent=`✓ Đã import ${inserted} mục từ vựng!`;
+  toast('✓ Import từ vựng hoàn tất!');
+  await loadPhrases(); filterPhrases();
+}
+
+async function seedDialogues(){
+  const btn=document.getElementById('seedDialoguesBtn');
+  if(!window.SEED_DIALOGUES){toast('Không tìm thấy dữ liệu SEED_DIALOGUES trong seed-data.js',true);return;}
+  btn.disabled=true;btn.textContent='Đang import...';
+  showSeedProgress(0);
+  const dials=window.SEED_DIALOGUES;
+  let count=0;
+  for(let i=0;i<dials.length;i++){
+    const d=dials[i];
+    const {data:existing}=await sb.from('dialogues').select('id').eq('title',d.title).single();
+    let dialId;
+    if(existing){
+      dialId=existing.id;
+      await sb.from('dialogues').update({icon:d.icon||'💬',difficulty:d.difficulty||'easy',sort_order:i}).eq('id',dialId);
+      await sb.from('dialogue_lines').delete().eq('dialogue_id',dialId);
+    } else {
+      const {data,error}=await sb.from('dialogues').insert({title:d.title,icon:d.icon||'💬',difficulty:d.difficulty||'easy',sort_order:i}).select().single();
+      if(error){toast('Lỗi: '+error.message,true);continue;}
+      dialId=data.id;
+    }
+    if(d.lines&&d.lines.length){
+      const lp=d.lines.map((l,j)=>({dialogue_id:dialId,role:l.role,de:l.de,vi:l.vi,sort_order:j}));
+      await sb.from('dialogue_lines').insert(lp);
+    }
+    count++;
+    showSeedProgress(Math.round((i+1)/dials.length*100));
+  }
+  btn.disabled=false;btn.textContent='📥 Import Hội thoại';
+  hideSeedProgress();
+  document.getElementById('seedResult').textContent=`✓ Đã import ${count} hội thoại!`;
+  toast('✓ Import hội thoại hoàn tất!');
+  await loadDialogues();
+}
+
+async function seedAll(){
+  await seedPhrases();
+  await seedDialogues();
+  document.getElementById('seedResult').textContent='✓ Import tất cả hoàn tất!';
+  toast('✓ Đã import tất cả!');
+}
+
+function showSeedProgress(pct){
+  const w=document.getElementById('seedProgress');
+  const f=document.getElementById('seedProgressFill');
+  w.style.display='block';f.style.width=pct+'%';
+}
+function hideSeedProgress(){
+  setTimeout(()=>{document.getElementById('seedProgress').style.display='none';},800);
+}
+
+async function confirmDeleteAll(tbl){
+  confirm2(
+    'Xóa tất cả '+tbl+'?',
+    'Hành động này sẽ xóa TOÀN BỘ dữ liệu trong bảng "'+tbl+'". Không thể hoàn tác!',
+    async()=>{
+      const {error}=await sb.from(tbl).delete().neq('id',0);
+      if(error){toast('Lỗi: '+error.message,true);return;}
+      toast('🗑️ Đã xóa tất cả '+tbl+'!');
+      if(tbl==='phrases'){await loadPhrases();filterPhrases();}
+      else if(tbl==='dialogues') await loadDialogues();
+    }
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// CONFIRM HELPER
+// ══════════════════════════════════════════════════════════
+let _confirmCb=null;
+function confirm2(title,sub,cb){
+  _confirmCb=cb;
+  document.getElementById('confirmTitle').textContent=title;
+  document.getElementById('confirmSub').textContent=sub||'Hành động này không thể hoàn tác.';
+  document.getElementById('confirmModal').classList.add('on');
+}
+function closeConfirm(){document.getElementById('confirmModal').classList.remove('on');_confirmCb=null;}
+document.getElementById('confirmOkBtn').addEventListener('click',async()=>{
+  closeConfirm();
+  if(_confirmCb) await _confirmCb();
+});
+document.getElementById('confirmModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeConfirm();});
+
+// ══════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════
+function esc(s){
+  if(s==null)return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════════════════════════
+// AUTO-LOGIN CHECK
+// ══════════════════════════════════════════════════════════
+(async()=>{
+  const {data:{session}} = await sb.auth.getSession();
+  if(session){
+    currentUser = session.user;
+    await initApp();
+  }
+})();
+</script>
+</body>
+</html>
