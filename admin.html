@@ -50,6 +50,7 @@
     <div class="nav-it active" data-panel="overview" style="--tc:var(--blue)" onclick="showPanel('overview')"><span class="nav-ic">📊</span>Dashboard</div>
     <div class="nav-sec">Nội dung</div>
     <div class="nav-it" data-panel="phrases" style="--tc:var(--teal)" onclick="showPanel('phrases')"><span class="nav-ic">💬</span>Từ vựng & Cụm từ</div>
+    <div class="nav-it" data-panel="categories" style="--tc:var(--orange)" onclick="showPanel('categories')"><span class="nav-ic">🗂️</span>Danh mục</div>
     <div class="nav-it" data-panel="dialogues" style="--tc:var(--purple)" onclick="showPanel('dialogues')"><span class="nav-ic">🗣️</span>Hội thoại</div>
     <div class="nav-sec">Hệ thống</div>
     <div class="nav-it" data-panel="levels" style="--tc:var(--yellow)" onclick="showPanel('levels')"><span class="nav-ic">⭐</span>Levels</div>
@@ -122,6 +123,31 @@
         </table>
       </div>
     </div>
+  </div>
+
+  <!-- ══ CATEGORIES ══ -->
+  <div class="adm-panel" id="panel-categories">
+    <div class="ph">
+      <div class="ph-left"><div class="pt">🗂️ Danh mục</div><div class="ps">Quản lý danh mục từ vựng — thêm, sửa, xóa và sắp xếp thứ tự hiển thị</div></div>
+      <button class="btn btn-green" onclick="openCategoryModal()">＋ Thêm danh mục</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="categoriesTable">
+        <thead><tr>
+          <th style="width:5%;text-align:center;">Icon</th>
+          <th style="width:22%">Tên danh mục</th>
+          <th style="width:15%">Key (slug)</th>
+          <th style="width:14%">Phân loại</th>
+          <th style="width:12%">Số từ vựng</th>
+          <th style="width:8%">Thứ tự</th>
+          <th style="width:24%">Thao tác</th>
+        </tr></thead>
+        <tbody id="categoriesBody">
+          <tr><td colspan="7" class="loading"><span class="spin"></span>Đang tải...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="info-box" style="margin-top:.8rem;">💡 <strong>Key (slug)</strong> là mã định danh nội bộ (VD: <code>patient</code>, <code>anatomy</code>), không thể thay đổi sau khi tạo vì được dùng làm khoá trong bảng <code>phrases</code>.</div>
   </div>
 
   <!-- ══ DIALOGUES ══ -->
@@ -276,6 +302,45 @@
     <div class="modal-actions">
       <button class="btn" onclick="closePhraseModal()">Huỷ</button>
       <button class="btn btn-green" id="pmSaveBtn" onclick="savePhrase()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ CATEGORY MODAL ════════ -->
+<div class="overlay" id="categoryModal">
+  <div class="modal">
+    <div class="modal-title" id="categoryModalTitle">Thêm danh mục</div>
+    <div class="modal-err" id="categoryModalErr"></div>
+    <div class="frow-grid">
+      <div class="frow">
+        <label class="flbl">Icon (emoji) *</label>
+        <input class="finp" id="cm-icon" type="text" placeholder="📁" maxlength="4">
+      </div>
+      <div class="frow">
+        <label class="flbl">Thứ tự hiển thị</label>
+        <input class="finp" id="cm-sort" type="number" value="0" min="0">
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flbl">Tên hiển thị (tiếng Việt) *</label>
+      <input class="finp" id="cm-label" type="text" placeholder="VD: Bệnh nhân, Đồng nghiệp...">
+    </div>
+    <div class="frow">
+      <label class="flbl">Key (slug) *</label>
+      <input class="finp" id="cm-key" type="text" placeholder="VD: patient, benh_nhan...">
+      <div id="cm-key-hint" style="font-size:.69rem;color:var(--t3);margin-top:3px;">Chỉ gồm chữ thường a-z, số và dấu <code style="color:var(--blue)">_</code>. Không thể thay đổi sau khi tạo.</div>
+    </div>
+    <div class="frow">
+      <label class="flbl">Phân loại *</label>
+      <select class="finp" id="cm-section">
+        <option value="communication">💬 Giao tiếp (Bệnh nhân, Đồng nghiệp...)</option>
+        <option value="vocabulary">📚 Từ vựng chuyên ngành (Giải phẫu, Thuốc...)</option>
+        <option value="other">📂 Khác</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeCategoryModal()">Huỷ</button>
+      <button class="btn btn-green" id="cmSaveBtn" onclick="saveCategory()">Lưu</button>
     </div>
   </div>
 </div>

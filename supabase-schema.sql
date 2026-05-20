@@ -310,3 +310,53 @@ do $$ begin alter publication supabase_realtime add table public.badges;        
 -- - Phần ANON READ + REALTIME ở trên cho phép index.html (không đăng nhập)
 --   đọc nội dung học tập và nhận cập nhật realtime khi admin sửa.
 -- ═══════════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════════
+-- CATEGORIES (quản lý danh mục động — thêm/sửa/xóa qua Admin Panel)
+-- Chạy phần này nếu chưa có bảng categories
+-- ═══════════════════════════════════════════════════════════════════
+create table if not exists public.categories (
+  id          bigserial primary key,
+  key         text unique not null,
+  label       text not null,
+  icon        text not null default '📁',
+  section     text not null default 'vocabulary'
+                check (section in ('communication','vocabulary','other')),
+  color       text,
+  sort_order  int not null default 0,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.categories enable row level security;
+
+drop policy if exists "categories_read_auth" on public.categories;
+create policy "categories_read_auth" on public.categories
+  for select to authenticated using ( true );
+
+drop policy if exists "categories_read_anon" on public.categories;
+create policy "categories_read_anon" on public.categories
+  for select to anon using ( true );
+
+drop policy if exists "categories_write_editor_admin" on public.categories;
+create policy "categories_write_editor_admin" on public.categories
+  for all to authenticated
+  using ( public.current_role() in ('super_admin','editor') )
+  with check ( public.current_role() in ('super_admin','editor') );
+
+do $$ begin
+  alter publication supabase_realtime add table public.categories;
+exception when others then null; end $$;
+
+-- Seed categories mặc định
+insert into public.categories (key, label, icon, section, sort_order) values
+  ('patient',         'Bệnh nhân',      '👤', 'communication', 1),
+  ('colleague',       'Đồng nghiệp',    '👥', 'communication', 2),
+  ('handover',        'Bàn giao ca',    '🔄', 'communication', 3),
+  ('emergency',       'Khẩn cấp',       '🚨', 'communication', 4),
+  ('vocab',           'Chuyên ngành',   '📚', 'vocabulary',    5),
+  ('anatomy',         'Giải phẫu',      '🫀', 'vocabulary',    6),
+  ('medication',      'Thuốc & ĐT',     '💊', 'vocabulary',    7),
+  ('documentation',   'Hồ sơ',          '📋', 'vocabulary',    8),
+  ('nursing_process', 'Quy trình ĐD',   '🩺', 'vocabulary',    9),
+  ('mental',          'Tâm thần & Lão', '🧠', 'vocabulary',    10)
+on conflict (key) do nothing;

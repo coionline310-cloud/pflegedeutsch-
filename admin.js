@@ -32,6 +32,8 @@ let editPhraseId = null;
 let editDialogueId = null;
 let editLevelId = null;
 let editBadgeId = null;
+let allCategories = [];
+let editCategoryId = null;
 
 // ══════════════════════════════════════════════════════════
 // TOAST
@@ -131,8 +133,8 @@ async function initApp(){
   if(profile.role!=='super_admin'){
     document.querySelectorAll('.admin-only').forEach(el=>el.style.display='none');
   }
-  // Setup cat filter
-  setupCatFilter();
+  // Load categories (also calls setupCatFilter internally)
+  await loadCategories();
   // Config info
   document.getElementById('configInfo').textContent =
     'URL: ' + SB_URL + '\nKey: ' + SB_KEY.slice(0,30) + '...';
@@ -145,8 +147,9 @@ async function initApp(){
 // NAV
 // ══════════════════════════════════════════════════════════
 const PANEL_TITLES = {
-  overview:'Dashboard', phrases:'Từ vựng & Cụm từ', dialogues:'Hội thoại',
-  levels:'Levels', badges:'Badges', users:'Người dùng', settings:'Cài đặt'
+  overview:'Dashboard', phrases:'Từ vựng & Cụm từ', categories:'Danh mục',
+  dialogues:'Hội thoại', levels:'Levels', badges:'Badges',
+  users:'Người dùng', settings:'Cài đặt'
 };
 function showPanel(id){
   document.querySelectorAll('.adm-panel').forEach(p=>p.classList.remove('active'));
@@ -162,6 +165,7 @@ function showPanel(id){
   else if(id==='badges') loadBadges();
   else if(id==='users')  loadUsers();
   else if(id==='overview') loadOverview();
+  else if(id==='categories') loadCategories();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -187,7 +191,10 @@ async function loadOverview(){
   if(catData){
     const counts = {};
     catData.forEach(r=>counts[r.category]=(counts[r.category]||0)+1);
-    const html = Object.entries(CAT_META).map(([k,v])=>`
+    const catList = allCategories.length
+      ? allCategories.map(c=>([c.key,{l:c.label,ic:c.icon}]))
+      : Object.entries(CAT_META);
+    const html = catList.map(([k,v])=>`
       <div style="display:flex;align-items:center;gap:8px;padding:.5rem 0;border-bottom:1px solid var(--b1);">
         <span style="font-size:1rem;width:24px;">${v.ic}</span>
         <span style="flex:1;font-size:.82rem;">${v.l}</span>
@@ -213,15 +220,17 @@ async function loadPhrases(){
 }
 
 function setupCatFilter(){
+  const cats = allCategories.length
+    ? allCategories.map(c=>([c.key,{l:c.label,ic:c.icon}]))
+    : Object.entries(CAT_META);
   const sel = document.getElementById('catFilter');
   sel.innerHTML = '<option value="">Tất cả danh mục</option>';
-  Object.entries(CAT_META).forEach(([k,v])=>{
+  cats.forEach(([k,v])=>{
     const o=document.createElement('option');o.value=k;o.textContent=v.ic+' '+v.l;sel.appendChild(o);
   });
-  // Populate phrase modal select
   const pms = document.getElementById('pm-cat');
   pms.innerHTML='';
-  Object.entries(CAT_META).forEach(([k,v])=>{
+  cats.forEach(([k,v])=>{
     const o=document.createElement('option');o.value=k;o.textContent=v.ic+' '+v.l;pms.appendChild(o);
   });
 }
@@ -321,7 +330,17 @@ async function savePhrase(){
     ({error} = await sb.from('phrases').insert(payload));
   }
   btn.disabled=false; btn.textContent='Lưu';
-  if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';return;}
+  if(error){
+    let msg = error.message||'';
+    if(msg.includes('column') && msg.includes('schema cache')){
+      const col = (msg.match(/'([^']+)' column/)||[])[1]||'example';
+      msg = `Cột '${col}' chưa tồn tại trong database. Hãy chạy lệnh này trong Supabase SQL Editor:\nALTER TABLE public.phrases ADD COLUMN IF NOT EXISTS ${col} text;\nNOTIFY pgrst, 'reload schema';`;
+    }
+    errEl.style.whiteSpace='pre-wrap';
+    errEl.textContent='Lỗi: '+msg;
+    errEl.style.display='block';
+    return;
+  }
   closePhraseModal();
   toast(editPhraseId?'✓ Đã cập nhật!':'✓ Đã thêm mới!');
   await loadPhrases();
@@ -335,6 +354,171 @@ async function deletePhrase(id){
     if(!data||!data.length){toast('Lỗi: không xóa được — kiểm tra quyền Supabase',true);return;}
     toast('🗑️ Đã xóa!');
     await loadPhrases(); filterPhrases();
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// CATEGORIES
+// ══════════════════════════════════════════════════════════
+async function loadCategories(){
+  const {data,error}=await sb.from('categories').select('*').order('sort_order').order('id');
+  if(error){
+    console.warn('[categories] table not found, using defaults:',error.message);
+    setupCatFilter();
+    return;
+  }
+  allCategories=data||[];
+  rebuildCatMeta();
+  setupCatFilter();
+  renderCategories();
+}
+
+function rebuildCatMeta(){
+  Object.keys(CAT_META).forEach(k=>delete CAT_META[k]);
+  allCategories.forEach(c=>{CAT_META[c.key]={l:c.label,ic:c.icon,c:c.color||'var(--t2)'};});
+}
+
+function labelToKey(label){
+  return label.toLowerCase()
+    .replace(/[àáảãạăắặằẳẵâấầẩẫậ]/g,'a')
+    .replace(/[èéẻẽẹêếềểễệ]/g,'e')
+    .replace(/[ìíỉĩị]/g,'i')
+    .replace(/[òóỏõọôốồổỗộơớờởỡợ]/g,'o')
+    .replace(/[ùúủũụưứừửữự]/g,'u')
+    .replace(/[ỳýỷỹỵ]/g,'y')
+    .replace(/đ/g,'d')
+    .replace(/[^a-z0-9\s]/g,'')
+    .trim().replace(/\s+/g,'_');
+}
+
+const SEC_META={
+  communication:{l:'💬 Giao tiếp',cls:'sec-comm'},
+  vocabulary:   {l:'📚 Từ vựng',  cls:'sec-vocab'},
+  other:        {l:'📂 Khác',     cls:'sec-other'}
+};
+
+function renderCategories(){
+  const body=document.getElementById('categoriesBody');
+  if(!body)return;
+  if(!allCategories.length){
+    body.innerHTML='<tr><td colspan="7" class="empty-row">Chưa có danh mục nào. Chạy migration SQL rồi thêm mới.</td></tr>';
+    return;
+  }
+  const counts={};
+  allPhrases.forEach(p=>counts[p.category]=(counts[p.category]||0)+1);
+  body.innerHTML=allCategories.map(c=>{
+    const cnt=counts[c.key]||0;
+    const sm=SEC_META[c.section]||SEC_META.other;
+    const canDel=cnt===0;
+    return `
+    <tr>
+      <td style="font-size:1.25rem;text-align:center;">${esc(c.icon)}</td>
+      <td style="font-weight:600;">${esc(c.label)}</td>
+      <td><span class="key-chip">${esc(c.key)}</span></td>
+      <td><span class="sec-badge ${sm.cls}">${sm.l}</span></td>
+      <td><span class="count-num">${cnt}</span> mục</td>
+      <td style="color:var(--t3);">${c.sort_order}</td>
+      <td class="td-actions">
+        <button class="btn btn-blue btn-sm" onclick="openCategoryModal(${c.id})">✏️ Sửa</button>
+        <button class="btn btn-red btn-sm${canDel?'':' cat-del-disabled'}" onclick="${canDel?'deleteCategory('+c.id+')':'showCatDelWarn(\''+esc(c.label)+'\','+cnt+')'}" title="${canDel?'Xóa danh mục':'Còn '+cnt+' từ vựng — hãy xóa trước'}">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function showCatDelWarn(label,count){
+  document.getElementById('confirmOkBtn').style.display='none';
+  const cb=document.querySelector('#confirmModal .confirm-actions .btn:not(#confirmOkBtn)');
+  if(cb)cb.textContent='Đóng';
+  confirm2(`⚠️ Không thể xóa "${label}"`,`Danh mục này còn ${count} từ vựng. Hãy chuyển hoặc xóa tất cả từ vựng trước.`);
+}
+
+function openCategoryModal(id=null){
+  editCategoryId=id;
+  const errEl=document.getElementById('categoryModalErr');
+  errEl.style.display='none';
+  const keyInp=document.getElementById('cm-key');
+  const keyHint=document.getElementById('cm-key-hint');
+  if(id){
+    const cat=allCategories.find(c=>c.id===id);
+    if(!cat)return;
+    document.getElementById('categoryModalTitle').textContent='Sửa danh mục';
+    document.getElementById('cm-icon').value=cat.icon;
+    document.getElementById('cm-label').value=cat.label;
+    keyInp.value=cat.key;
+    keyInp.disabled=true;
+    keyInp.style.opacity='.5';
+    keyHint.textContent='Key không thể thay đổi (đang dùng làm khoá trong bảng phrases).';
+    document.getElementById('cm-section').value=cat.section||'vocabulary';
+    document.getElementById('cm-sort').value=cat.sort_order;
+  } else {
+    document.getElementById('categoryModalTitle').textContent='Thêm danh mục mới';
+    document.getElementById('cm-icon').value='📁';
+    document.getElementById('cm-label').value='';
+    keyInp.value='';
+    keyInp.disabled=false;
+    keyInp.style.opacity='1';
+    keyHint.innerHTML='Chỉ gồm chữ thường a-z, số và dấu <code style="color:var(--blue)">_</code>. Không thể thay đổi sau khi tạo.';
+    document.getElementById('cm-section').value='vocabulary';
+    const nextSort=allCategories.length?Math.max(...allCategories.map(c=>c.sort_order))+1:1;
+    document.getElementById('cm-sort').value=nextSort;
+  }
+  document.getElementById('categoryModal').classList.add('on');
+  setTimeout(()=>document.getElementById('cm-label').focus(),100);
+}
+function closeCategoryModal(){
+  document.getElementById('categoryModal').classList.remove('on');
+  const ki=document.getElementById('cm-key');
+  ki.disabled=false;ki.style.opacity='1';
+}
+document.getElementById('categoryModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCategoryModal();});
+document.getElementById('cm-label').addEventListener('input',function(){
+  if(editCategoryId)return;
+  document.getElementById('cm-key').value=labelToKey(this.value);
+});
+
+async function saveCategory(){
+  const icon   =document.getElementById('cm-icon').value.trim()||'📁';
+  const label  =document.getElementById('cm-label').value.trim();
+  const rawKey =document.getElementById('cm-key').value.trim().toLowerCase();
+  const key    =rawKey.replace(/[^a-z0-9_]/g,'_').replace(/__+/g,'_').replace(/^_|_$/g,'');
+  const section=document.getElementById('cm-section').value;
+  const sort   =parseInt(document.getElementById('cm-sort').value)||0;
+  const errEl  =document.getElementById('categoryModalErr');
+  errEl.style.display='none';
+  if(!label){errEl.textContent='Vui lòng nhập tên danh mục.';errEl.style.display='block';return;}
+  if(!editCategoryId){
+    if(!key){errEl.textContent='Vui lòng nhập key hợp lệ (chữ thường, số, dấu _).';errEl.style.display='block';return;}
+    if(allCategories.find(c=>c.key===key)){errEl.textContent=`Key "${key}" đã tồn tại.`;errEl.style.display='block';return;}
+  }
+  const btn=document.getElementById('cmSaveBtn');
+  btn.disabled=true;btn.textContent='Đang lưu...';
+  const payload={icon,label,section,sort_order:sort};
+  if(!editCategoryId)payload.key=key;
+  let error;
+  if(editCategoryId){
+    ({error}=await sb.from('categories').update(payload).eq('id',editCategoryId));
+  } else {
+    ({error}=await sb.from('categories').insert(payload));
+  }
+  btn.disabled=false;btn.textContent='Lưu';
+  if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';return;}
+  closeCategoryModal();
+  toast(editCategoryId?'✓ Đã cập nhật danh mục!':'✓ Đã thêm danh mục mới!');
+  await loadCategories();
+  filterPhrases();
+}
+
+async function deleteCategory(id){
+  const cat=allCategories.find(c=>c.id===id);
+  if(!cat)return;
+  confirm2(`Xóa danh mục "${cat.label}"?`,`Key: ${cat.key} — Không thể hoàn tác.`,async()=>{
+    const {data,error}=await sb.from('categories').delete().eq('id',id).select();
+    if(error){toast('Lỗi xóa: '+error.message,true);return;}
+    if(!data||!data.length){toast('Lỗi: không xóa được — kiểm tra quyền',true);return;}
+    toast('🗑️ Đã xóa danh mục!');
+    await loadCategories();
+    filterPhrases();
   });
 }
 
@@ -890,7 +1074,13 @@ function confirm2(title,sub,cb){
   document.getElementById('confirmSub').textContent=sub||'Hành động này không thể hoàn tác.';
   document.getElementById('confirmModal').classList.add('on');
 }
-function closeConfirm(){document.getElementById('confirmModal').classList.remove('on');_confirmCb=null;}
+function closeConfirm(){
+  document.getElementById('confirmModal').classList.remove('on');
+  _confirmCb=null;
+  document.getElementById('confirmOkBtn').style.display='';
+  const closeBtn=document.querySelector('#confirmModal .confirm-actions .btn:not(#confirmOkBtn)');
+  if(closeBtn) closeBtn.textContent='Huỷ';
+}
 async function executeConfirm(){
   const cb=_confirmCb;
   closeConfirm();
