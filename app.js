@@ -1583,6 +1583,7 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
     if(d.error){ console.warn('[live] dialogues error:', d.error?.message); return false; }
     if(l.error) console.warn('[live] levels error (dùng defaults):', l.error?.message);
     if(b.error) console.warn('[live] badges error (dùng defaults):', b.error?.message);
+    if(cats.error) console.warn('[live] categories error (kiểm tra RLS anon policy):', cats.error?.message);
     // ── Categories → CAT_META, PHRASE_CATS, VOCAB_CATS, sidebar ──
     if(cats.data && cats.data.length){
       Object.keys(CAT_META).forEach(k=>delete CAT_META[k]);
@@ -1700,8 +1701,8 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
     }
   })();
 
-  // Realtime — subscribe các bảng nội dung
-  ['phrases','dialogues','dialogue_lines','levels','badges'].forEach(tbl=>{
+  // Realtime — subscribe các bảng nội dung (bao gồm categories để sidebar cập nhật tức thời)
+  ['phrases','dialogues','dialogue_lines','levels','badges','categories'].forEach(tbl=>{
     sb.channel('rt:'+tbl)
       .on('postgres_changes', { event:'*', schema:'public', table: tbl }, debouncedReload)
       .subscribe(status=>{ if(status==='SUBSCRIBED') console.info('[live] Realtime ON:', tbl); });
