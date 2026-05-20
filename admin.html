@@ -601,7 +601,7 @@ select.finp{cursor:pointer;}
     <div class="confirm-sub" id="confirmSub">Hành động này không thể hoàn tác.</div>
     <div class="confirm-actions">
       <button class="btn" onclick="closeConfirm()">Huỷ</button>
-      <button class="btn btn-red" id="confirmOkBtn">Xóa</button>
+      <button class="btn btn-red" id="confirmOkBtn" onclick="executeConfirm()">Xóa</button>
     </div>
   </div>
 </div>
@@ -942,8 +942,9 @@ async function savePhrase(){
 
 async function deletePhrase(id){
   confirm2('Xóa mục này?','Dữ liệu sẽ bị xóa vĩnh viễn.',async()=>{
-    const {error} = await sb.from('phrases').delete().eq('id',id);
-    if(error){toast('Lỗi: '+error.message,true);return;}
+    const {data,error} = await sb.from('phrases').delete().eq('id',id).select();
+    if(error){toast('Lỗi xóa: '+error.message,true);return;}
+    if(!data||!data.length){toast('Lỗi: không xóa được — kiểm tra quyền Supabase',true);return;}
     toast('🗑️ Đã xóa!');
     await loadPhrases(); filterPhrases();
   });
@@ -1114,8 +1115,9 @@ async function saveDialogue(){
 
 async function deleteDialogue(id){
   confirm2('Xóa hội thoại này?','Tất cả dòng thoại bên trong cũng sẽ bị xóa.',async()=>{
-    const {error}=await sb.from('dialogues').delete().eq('id',id);
-    if(error){toast('Lỗi: '+error.message,true);return;}
+    const {data,error}=await sb.from('dialogues').delete().eq('id',id).select();
+    if(error){toast('Lỗi xóa: '+error.message,true);return;}
+    if(!data||!data.length){toast('Lỗi: không xóa được — kiểm tra quyền Supabase',true);return;}
     toast('🗑️ Đã xóa hội thoại!');
     await loadDialogues();
   });
@@ -1165,9 +1167,10 @@ async function saveLevel(){
   if(isNaN(xp)||!name){errEl.textContent='Vui lòng điền Min XP và Tên.';errEl.style.display='block';return;}
   const btn=document.getElementById('lmSaveBtn');
   btn.disabled=true;btn.textContent='Đang lưu...';
-  let error;
+  let error, data;
   if(editLevelId){
-    ({error}=await sb.from('levels').update({min_xp:xp,name,emoji,sort_order:sort}).eq('id',editLevelId));
+    ({data,error}=await sb.from('levels').update({min_xp:xp,name,emoji,sort_order:sort}).eq('id',editLevelId).select());
+    if(!error&&(!data||!data.length)){errEl.textContent='Lỗi: không cập nhật được — kiểm tra quyền Supabase';errEl.style.display='block';btn.disabled=false;btn.textContent='Lưu';return;}
   } else {
     ({error}=await sb.from('levels').insert({min_xp:xp,name,emoji,sort_order:sort}));
   }
@@ -1180,8 +1183,9 @@ async function saveLevel(){
 
 async function deleteLevel(id){
   confirm2('Xóa level này?','',async()=>{
-    const {error}=await sb.from('levels').delete().eq('id',id);
-    if(error){toast('Lỗi: '+error.message,true);return;}
+    const {data,error}=await sb.from('levels').delete().eq('id',id).select();
+    if(error){toast('Lỗi xóa: '+error.message,true);return;}
+    if(!data||!data.length){toast('Lỗi: không xóa được — kiểm tra quyền Supabase',true);return;}
     toast('🗑️ Đã xóa!'); loadLevels();
   });
 }
@@ -1252,8 +1256,9 @@ async function saveBadge(){
 
 async function deleteBadge(id){
   confirm2('Xóa badge này?','',async()=>{
-    const {error}=await sb.from('badges').delete().eq('id',id);
-    if(error){toast('Lỗi: '+error.message,true);return;}
+    const {data,error}=await sb.from('badges').delete().eq('id',id).select();
+    if(error){toast('Lỗi xóa: '+error.message,true);return;}
+    if(!data||!data.length){toast('Lỗi: không xóa được — kiểm tra quyền Supabase',true);return;}
     toast('🗑️ Đã xóa!'); loadBadges();
   });
 }
@@ -1498,11 +1503,11 @@ function confirm2(title,sub,cb){
   document.getElementById('confirmModal').classList.add('on');
 }
 function closeConfirm(){document.getElementById('confirmModal').classList.remove('on');_confirmCb=null;}
-document.getElementById('confirmOkBtn').addEventListener('click',async()=>{
+async function executeConfirm(){
   const cb=_confirmCb;
   closeConfirm();
   if(cb) await cb();
-});
+}
 document.getElementById('confirmModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeConfirm();});
 
 // ══════════════════════════════════════════════════════════
