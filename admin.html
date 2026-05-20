@@ -663,11 +663,17 @@ async function doLogin(){
   err.style.display='none';
   if(!email||!pwd){err.textContent='Vui lòng nhập email và mật khẩu.';err.style.display='block';return;}
   btn.disabled=true; btn.textContent='Đang đăng nhập...';
-  const {data, error} = await sb.auth.signInWithPassword({email, password:pwd});
-  btn.disabled=false; btn.textContent='Đăng nhập';
-  if(error){err.textContent=error.message;err.style.display='block';return;}
-  currentUser = data.user;
-  await initApp();
+  try {
+    const {data, error} = await sb.auth.signInWithPassword({email, password:pwd});
+    if(error){err.textContent=error.message;err.style.display='block';return;}
+    currentUser = data.user;
+    await initApp();
+  } catch(e) {
+    err.textContent='Lỗi kết nối: ' + (e?.message||'Vui lòng thử lại.');
+    err.style.display='block';
+  } finally {
+    btn.disabled=false; btn.textContent='Đăng nhập';
+  }
 }
 
 async function doLogout(){
