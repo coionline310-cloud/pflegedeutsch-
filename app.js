@@ -619,7 +619,7 @@ function renderListH(cat,isV){
   function itemHTML(p){
     const note=p.n?('<div class="'+(isV?'vi2-n':'pi-note')+'">💡 '+p.n+'</div>'):'';
     const ex=p.ex?('<div class="pi-ex">📝 '+p.ex+'</div>'):'';
-    const spk=`<button class="pi-speak" onclick="speakDE(${JSON.stringify(p.de)})" title="Phát âm">🔊</button>`;
+    const spk=`<button class="pi-speak" onclick="speakDE('${esc(p.de)}')" title="Phát âm">🔊</button>`;
     if(isV) return '<div class="vi2"><div class="vi2-de">'+p.de+spk+'</div><div class="vi2-vi">'+p.vi+'</div>'+note+ex+'</div>';
     return '<div class="pi"><div class="pi-de">'+p.de+spk+'</div><div class="pi-vi">'+p.vi+'</div>'+note+ex+'</div>';
   }
