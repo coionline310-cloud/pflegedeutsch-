@@ -258,7 +258,7 @@ function renderPhrases(list){
   }
   body.innerHTML = list.map(p=>`
     <tr>
-      <td class="td-de">${esc(p.de)}<br>${p.note?'<span class="td-note">💡 '+esc(p.note)+'</span>':''}</td>
+      <td class="td-de">${esc(p.de)}<br>${p.note?'<span class="td-note">💡 '+esc(p.note)+'</span>':''}${p.example?'<span class="td-ex">📝 '+esc(p.example)+'</span>':''}</td>
       <td class="td-vi">${esc(p.vi)}</td>
       <td><span class="cat-badge">${CAT_META[p.category]?.ic||''} ${CAT_META[p.category]?.l||p.category}</span></td>
       <td style="color:var(--t2);font-size:.77rem;">${esc(p.group_name)}</td>
@@ -281,6 +281,7 @@ function openPhraseModal(id=null){
     document.getElementById('pm-de').value = p.de;
     document.getElementById('pm-vi').value = p.vi;
     document.getElementById('pm-note').value = p.note||'';
+    document.getElementById('pm-example').value = p.example||'';
     document.getElementById('pm-sort').value = p.sort_order||0;
   } else {
     document.getElementById('pm-cat').value = 'patient';
@@ -288,6 +289,7 @@ function openPhraseModal(id=null){
     document.getElementById('pm-de').value = '';
     document.getElementById('pm-vi').value = '';
     document.getElementById('pm-note').value = '';
+    document.getElementById('pm-example').value = '';
     document.getElementById('pm-sort').value = '0';
   }
   document.getElementById('phraseModal').classList.add('on');
@@ -297,12 +299,13 @@ function closePhraseModal(){document.getElementById('phraseModal').classList.rem
 document.getElementById('phraseModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closePhraseModal();});
 
 async function savePhrase(){
-  const cat  = document.getElementById('pm-cat').value;
-  const grp  = document.getElementById('pm-group').value.trim();
-  const de   = document.getElementById('pm-de').value.trim();
-  const vi   = document.getElementById('pm-vi').value.trim();
-  const note = document.getElementById('pm-note').value.trim();
-  const sort = parseInt(document.getElementById('pm-sort').value)||0;
+  const cat     = document.getElementById('pm-cat').value;
+  const grp     = document.getElementById('pm-group').value.trim();
+  const de      = document.getElementById('pm-de').value.trim();
+  const vi      = document.getElementById('pm-vi').value.trim();
+  const note    = document.getElementById('pm-note').value.trim();
+  const example = document.getElementById('pm-example').value.trim();
+  const sort    = parseInt(document.getElementById('pm-sort').value)||0;
   const errEl = document.getElementById('phraseModalErr');
   errEl.style.display='none';
   if(!grp||!de||!vi){errEl.textContent='Vui lòng điền đủ Nhóm, Tiếng Đức và Tiếng Việt.';errEl.style.display='block';return;}
@@ -310,6 +313,7 @@ async function savePhrase(){
   btn.disabled=true; btn.textContent='Đang lưu...';
   const payload = {category:cat, group_name:grp, de, vi, sort_order:sort};
   if(note) payload.note=note; else payload.note=null;
+  payload.example = example || null;
   let error;
   if(editPhraseId){
     ({error} = await sb.from('phrases').update(payload).eq('id', editPhraseId));
@@ -900,6 +904,84 @@ document.getElementById('confirmModal').addEventListener('click',e=>{if(e.target
 function esc(s){
   if(s==null)return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════════════════════════
+// CSV IMPORT / EXPORT
+// ══════════════════════════════════════════════════════════
+function exportPhrasesCSV(){
+  if(!allPhrases||!allPhrases.length){toast('Chưa có dữ liệu để xuất',true);return;}
+  const headers=['de','vi','note','example','category','group','sort_order'];
+  const rows=[headers];
+  allPhrases.forEach(p=>rows.push([
+    p.de,p.vi,p.note||'',p.example||'',p.category,p.group_name,p.sort_order||0
+  ]));
+  const csv=rows.map(r=>r.map(c=>{const s=String(c).replace(/"/g,'""');return /[,"\n\r]/.test(s)?`"${s}"`:s;}).join(',')).join('\r\n');
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  a.download='pflegedeutsch_phrases_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('✓ Đã xuất '+allPhrases.length+' mục!');
+}
+
+async function importPhrasesCSV(file){
+  if(!file)return;
+  const resEl=document.getElementById('csv-import-result');
+  resEl.style.display='block';resEl.style.color='var(--t2)';
+  resEl.textContent='⏳ Đang đọc file...';
+  let text;
+  try{text=await file.text();}catch(e){resEl.style.color='var(--red)';resEl.textContent='Lỗi đọc file: '+e.message;return;}
+  const lines=text.split(/\r?\n/);
+  if(lines.length<2){resEl.style.color='var(--red)';resEl.textContent='File rỗng hoặc không đúng định dạng.';return;}
+  const headers=parseCSVLine(lines[0]).map(h=>h.toLowerCase().trim());
+  const required=['de','vi'];
+  const missing=required.filter(h=>!headers.includes(h));
+  if(missing.length){resEl.style.color='var(--red)';resEl.textContent='Thiếu cột bắt buộc: '+missing.join(', ')+'. Cần ít nhất: de, vi, category, group';return;}
+  const idx={};headers.forEach((h,i)=>idx[h]=i);
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim())continue;
+    const cols=parseCSVLine(lines[i]);
+    const de=(cols[idx['de']]||'').trim();
+    const vi=(cols[idx['vi']]||'').trim();
+    if(!de||!vi)continue;
+    const row={
+      de,vi,
+      category:(cols[idx['category']]||'vocab').trim(),
+      group_name:(cols[idx['group']]||cols[idx['group_name']]||'Nhập CSV').trim(),
+      sort_order:parseInt(cols[idx['sort_order']])||0,
+      note:(cols[idx['note']]||'').trim()||null,
+      example:(cols[idx['example']]||'').trim()||null,
+    };
+    rows.push(row);
+  }
+  if(!rows.length){resEl.style.color='var(--red)';resEl.textContent='Không tìm thấy dữ liệu hợp lệ.';return;}
+  resEl.textContent=`⏳ Đang nhập ${rows.length} mục...`;
+  const BATCH=50;let imported=0,errors=0;
+  for(let i=0;i<rows.length;i+=BATCH){
+    const batch=rows.slice(i,i+BATCH);
+    const {error}=await sb.from('phrases').upsert(batch,{onConflict:'category,group_name,de'});
+    if(error){errors+=batch.length;}else{imported+=batch.length;}
+    resEl.textContent=`⏳ Đang nhập... ${Math.min(i+BATCH,rows.length)}/${rows.length}`;
+  }
+  resEl.style.color=errors?'var(--yellow)':'var(--green)';
+  resEl.textContent=`✓ Nhập xong: ${imported} mục thành công${errors?' | '+errors+' lỗi':''}`;
+  document.getElementById('csvFileInput').value='';
+  toast(`✓ Nhập xong ${imported} mục!`);
+  await loadPhrases();filterPhrases();
+}
+function parseCSVLine(line){
+  const result=[];let field='',inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){if(inQ&&line[i+1]==='"'){field+='"';i++;}else inQ=!inQ;}
+    else if(c===','&&!inQ){result.push(field);field='';}
+    else field+=c;
+  }
+  result.push(field);
+  return result;
 }
 
 // ══════════════════════════════════════════════════════════

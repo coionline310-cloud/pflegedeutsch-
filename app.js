@@ -618,9 +618,10 @@ function ensurePage(cat){
 function renderListH(cat,isV){
   function itemHTML(p){
     const note=p.n?('<div class="'+(isV?'vi2-n':'pi-note')+'">💡 '+p.n+'</div>'):'';
+    const ex=p.ex?('<div class="pi-ex">📝 '+p.ex+'</div>'):'';
     const spk=`<button class="pi-speak" onclick="speakDE(${JSON.stringify(p.de)})" title="Phát âm">🔊</button>`;
-    if(isV) return '<div class="vi2"><div class="vi2-de">'+p.de+spk+'</div><div class="vi2-vi">'+p.vi+'</div>'+note+'</div>';
-    return '<div class="pi"><div class="pi-de">'+p.de+spk+'</div><div class="pi-vi">'+p.vi+'</div>'+note+'</div>';
+    if(isV) return '<div class="vi2"><div class="vi2-de">'+p.de+spk+'</div><div class="vi2-vi">'+p.vi+'</div>'+note+ex+'</div>';
+    return '<div class="pi"><div class="pi-de">'+p.de+spk+'</div><div class="pi-vi">'+p.vi+'</div>'+note+ex+'</div>';
   }
   return DATA[cat].map(g=>`
     <div class="grp">
@@ -641,13 +642,24 @@ function setPMode(cat,mode,btn){
 // ════════════════════════════════════════════════════════
 // FLASHCARD ENGINE
 // ════════════════════════════════════════════════════════
-function initFC(cat){if(!flashState[cat])flashState[cat]={items:shuffle(flatCat(cat)),idx:0,flipped:false};}
+function initFC(cat){
+  if(!flashState[cat]){
+    const all=shuffle(flatCat(cat));
+    flashState[cat]={allItems:all,items:all,idx:0,flipped:false,filter:'all'};
+  }
+}
 function renderFC(cat){
   const el=document.getElementById(cat+'-fv');
   if(!el)return;
   if(!el.innerHTML){
     el.innerHTML=`
       <div class="fc-wrap">
+        <div class="fc-filter-row" id="${cat}-ffr">
+          <button class="fc-flt on" onclick="filterFC('${cat}','all',this)">Tất cả <b id="${cat}-ffall">-</b></button>
+          <button class="fc-flt" onclick="filterFC('${cat}','new',this)">🆕 Mới <b id="${cat}-ffnew">-</b></button>
+          <button class="fc-flt" onclick="filterFC('${cat}','due',this)">🔁 Ôn <b id="${cat}-ffdue">-</b></button>
+          <button class="fc-flt" onclick="filterFC('${cat}','done',this)">✅ Học rồi <b id="${cat}-ffdone">-</b></button>
+        </div>
         <div class="fc-prog-row">
           <div class="fc-pb"><div class="fc-pb-fill" id="${cat}-fp" style="width:0%"></div></div>
           <div class="fc-pc" id="${cat}-fpc">&nbsp;</div>
@@ -664,6 +676,7 @@ function renderFC(cat){
             <div class="fc-face fc-back">
               <div class="fc-lang">🇻🇳 Tiếng Việt</div>
               <div class="fc-txt" id="${cat}-fbt"></div>
+              <div class="fc-ex" id="${cat}-fbex"></div>
               <div class="fc-hint">Nhấn để lật lại ↑</div>
             </div>
           </div>
@@ -688,6 +701,8 @@ function updateFC(cat){
   document.getElementById(cat+'-fft').textContent=p.de;
   document.getElementById(cat+'-ffn').textContent=p.n?'💡 '+p.n:'';
   document.getElementById(cat+'-fbt').textContent=p.vi;
+  const exEl=document.getElementById(cat+'-fbex');
+  if(exEl)exEl.textContent=p.ex?'📝 '+p.ex:'';
   const card=document.getElementById(cat+'-fc');
   card.classList.remove('flip');
   // SRS tag
@@ -699,6 +714,7 @@ function updateFC(cat){
   const pct=Math.round((s.idx+1)/s.items.length*100);
   document.getElementById(cat+'-fp').style.width=pct+'%';
   document.getElementById(cat+'-fpc').textContent=`${s.idx+1}/${s.items.length}`;
+  updateFCCounts(cat);
 }
 function flipFC(cat){
   const s=flashState[cat];
@@ -730,6 +746,31 @@ document.addEventListener('keydown',e=>{
   else if(e.code==='ArrowRight'){e.preventDefault();navFC(activeFCCat,1);}
   else if(e.code==='ArrowLeft'){e.preventDefault();navFC(activeFCCat,-1);}
 });
+
+function filterFC(cat,filter,btn){
+  const s=flashState[cat];
+  document.getElementById(cat+'-ffr').querySelectorAll('.fc-flt').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  s.filter=filter;
+  const all=s.allItems;
+  const now=Date.now();
+  if(filter==='new') s.items=all.filter(p=>!SRS_DB[p.de]);
+  else if(filter==='due') s.items=all.filter(p=>{const r=SRS_DB[p.de];return r&&r.due<=now;});
+  else if(filter==='done') s.items=all.filter(p=>{const r=SRS_DB[p.de];return r&&r.due>now;});
+  else s.items=all;
+  if(!s.items.length){toast('Không có thẻ trong bộ lọc này');s.items=[...all];s.filter='all';document.getElementById(cat+'-ffr').querySelector('.fc-flt').classList.add('on');}
+  s.idx=0;s.flipped=false;
+  updateFC(cat);
+}
+function updateFCCounts(cat){
+  const s=flashState[cat];if(!s)return;
+  const all=s.allItems,now=Date.now();
+  const safe=(id,n)=>{const el=document.getElementById(id);if(el)el.textContent=n;};
+  safe(cat+'-ffall',all.length);
+  safe(cat+'-ffnew',all.filter(p=>!SRS_DB[p.de]).length);
+  safe(cat+'-ffdue',all.filter(p=>{const r=SRS_DB[p.de];return r&&r.due<=now;}).length);
+  safe(cat+'-ffdone',all.filter(p=>{const r=SRS_DB[p.de];return r&&r.due>now;}).length);
+}
 
 // ════════════════════════════════════════════════════════
 // TYPING MODE ENGINE
@@ -809,10 +850,12 @@ function submitTyping(cat){
   if(correct){
     res.className='ty-result ty-correct';
     res.innerHTML=`✅ Chính xác! <button class="ty-speak-btn" onclick="speakCurrentTyping('${cat}')">🔊 Phát âm</button>`;
+    if(p.ex) res.innerHTML += `<div class="ty-ex">📝 ${p.ex}</div>`;
     if(!s.answered){addXP(8,'Gõ đúng');GS.flashDone++;s.answered=true;}
   } else {
     res.className='ty-result ty-wrong';
     res.innerHTML=`❌ Đáp án: <strong>${p.de}</strong> <button class="ty-speak-btn" onclick="speakCurrentTyping('${cat}')">🔊</button>`;
+    if(p.ex) res.innerHTML += `<div class="ty-ex">📝 ${p.ex}</div>`;
   }
   document.getElementById(cat+'-tact').innerHTML=
     `<button class="ty-btn ty-btn-next" onclick="navTyping('${cat}',1)">Tiếp theo →</button>`;
@@ -1474,6 +1517,7 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
         if(!grouped[c][g]) grouped[c][g] = [];
         const item = { de: row.de, vi: row.vi, _so: row.sort_order||0 };
         if(row.note) item.n = row.note;
+        if(row.example) item.ex = row.example;
         grouped[c][g].push(item);
       });
       Object.entries(grouped).forEach(([c, gmap])=>{

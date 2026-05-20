@@ -200,3 +200,4 @@ select.finp{cursor:pointer;}
   .line-editor-row{grid-template-columns:70px 1fr;}
 }
 .menu-btn{display:none;padding:4px 6px;background:transparent;border:none;color:var(--t2);font-size:17px;cursor:pointer;}
+.td-ex{display:block;font-size:.63rem;color:var(--t3);font-style:italic;margin-top:2px;}

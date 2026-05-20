@@ -89,8 +89,13 @@
   <div class="adm-panel" id="panel-phrases">
     <div class="ph">
       <div class="ph-left"><div class="pt">💬 Từ vựng & Cụm từ</div><div class="ps">Quản lý tất cả phrases — có thể lọc theo danh mục</div></div>
-      <button class="btn btn-green" onclick="openPhraseModal()">＋ Thêm mới</button>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-green" onclick="openPhraseModal()">＋ Thêm từ vựng</button>
+        <button class="btn" onclick="exportPhrasesCSV()" title="Xuất tất cả từ vựng ra file CSV">⬇️ Xuất CSV</button>
+        <label class="btn" style="cursor:pointer;" title="Nhập từ vựng từ file CSV">⬆️ Nhập CSV<input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="importPhrasesCSV(this.files[0])"></label>
+      </div>
     </div>
+    <div id="csv-import-result" style="margin:.5rem 0;font-size:.78rem;color:var(--green);display:none;"></div>
     <div class="tbl-wrap">
       <div class="tbl-toolbar">
         <input class="tbl-search" id="phraseSearch" type="text" placeholder="Tìm tiếng Đức hoặc Việt..." oninput="filterPhrases()">
@@ -259,6 +264,10 @@
     <div class="frow">
       <label class="flbl">Ghi chú (tuỳ chọn)</label>
       <input class="finp" id="pm-note" type="text" placeholder="Ghi chú thêm...">
+    </div>
+    <div class="frow">
+      <label class="flbl">Câu ví dụ (tuỳ chọn)</label>
+      <textarea class="finp" id="pm-example" rows="2" placeholder="VD: Der Patient klagt über starke Schmerzen im Bauch."></textarea>
     </div>
     <div class="frow">
       <label class="flbl">Thứ tự sắp xếp</label>
