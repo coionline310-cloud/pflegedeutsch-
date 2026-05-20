@@ -617,12 +617,16 @@ function ensurePage(cat){
 }
 function renderListH(cat,isV){
   function itemHTML(p){
+    const safeDE=p.de.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    const safeVI=p.vi.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    const safeNote=(p.n||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    const safeEx=(p.ex||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    const dataStr=`data-de="${safeDE}" data-vi="${safeVI}" data-note="${safeNote}" data-ex="${safeEx}"`;
     const note=p.n?('<div class="'+(isV?'vi2-n':'pi-note')+'">💡 '+p.n+'</div>'):'';
     const ex=p.ex?('<div class="pi-ex">📝 '+p.ex+'</div>'):'';
-    const safeDE=p.de.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-    const spk=`<button class="pi-speak" data-de="${safeDE}" onclick="speakDE(this.dataset.de)" title="Phát âm">🔊</button>`;
-    if(isV) return '<div class="vi2"><div class="vi2-de">'+p.de+spk+'</div><div class="vi2-vi">'+p.vi+'</div>'+note+ex+'</div>';
-    return '<div class="pi"><div class="pi-de">'+p.de+spk+'</div><div class="pi-vi">'+p.vi+'</div>'+note+ex+'</div>';
+    const spk=`<button class="pi-speak" data-de="${safeDE}" onclick="speakDE(this.dataset.de);event.stopPropagation();" title="Phát âm">🔊</button>`;
+    if(isV) return `<div class="vi2" ${dataStr} onclick="showDictPopup(this,event)"><div class="vi2-de">${p.de}${spk}</div><div class="vi2-vi">${p.vi}</div>${note}${ex}</div>`;
+    return `<div class="pi" ${dataStr} onclick="showDictPopup(this,event)"><div class="pi-de">${p.de}${spk}</div><div class="pi-vi">${p.vi}</div>${note}${ex}</div>`;
   }
   return DATA[cat].map(g=>`
     <div class="grp">
@@ -741,12 +745,49 @@ function navFC(cat,d){const s=flashState[cat];s.idx=(s.idx+d+s.items.length)%s.i
 function shuffleFC(cat){const s=flashState[cat];s.items=shuffle(s.items);s.idx=0;updateFC(cat);}
 
 document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') hideDictPopup();
   if(!activeFCCat) return;
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
   if(e.code==='Space'){e.preventDefault();flipFC(activeFCCat);}
   else if(e.code==='ArrowRight'){e.preventDefault();navFC(activeFCCat,1);}
   else if(e.code==='ArrowLeft'){e.preventDefault();navFC(activeFCCat,-1);}
 });
+document.addEventListener('click',function(e){
+  const p=document.getElementById('dict-popup');
+  if(p&&p.style.display!=='none'&&!p.contains(e.target))hideDictPopup();
+});
+
+// ════════════════════════════════════════════════════════
+// DICTIONARY POPUP
+// ════════════════════════════════════════════════════════
+function showDictPopup(el,e){
+  e.stopPropagation();
+  const de=el.dataset.de||'', vi=el.dataset.vi||'';
+  const note=el.dataset.note||'', ex=el.dataset.ex||'';
+  document.getElementById('dict-de-txt').textContent=de;
+  document.getElementById('dict-vi-txt').textContent=vi;
+  const noteEl=document.getElementById('dict-note');
+  noteEl.textContent=note?'💡 '+note:''; noteEl.style.display=note?'':'none';
+  const exEl=document.getElementById('dict-ex');
+  exEl.textContent=ex?'📝 '+ex:''; exEl.style.display=ex?'':'none';
+  const srsEl=document.getElementById('dict-srs');
+  const r=SRS_DB[de];
+  if(!r){srsEl.textContent='🆕 Chưa học';srsEl.className='dict-srs new';}
+  else if(r.due<=Date.now()){srsEl.textContent='🔁 Cần ôn lại';srsEl.className='dict-srs due';}
+  else{srsEl.textContent='✅ Đã học · Ôn: '+new Date(r.due).toLocaleDateString('vi-VN');srsEl.className='dict-srs done';}
+  const popup=document.getElementById('dict-popup');
+  popup.style.display='block';
+  const pw=popup.offsetWidth||280, ph=popup.offsetHeight||180;
+  let x=e.clientX+14, y=e.clientY+14;
+  if(x+pw>window.innerWidth-12) x=e.clientX-pw-14;
+  if(y+ph>window.innerHeight-12) y=e.clientY-ph-14;
+  popup.style.left=Math.max(8,x)+'px';
+  popup.style.top=Math.max(8,y)+'px';
+}
+function hideDictPopup(){
+  const p=document.getElementById('dict-popup');
+  if(p) p.style.display='none';
+}
 
 function filterFC(cat,filter,btn){
   const s=flashState[cat];
