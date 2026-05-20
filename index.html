@@ -59,6 +59,7 @@
       <div class="xp-pill" id="tb-xp">⭐ 0 XP</div>
       <button class="ib pri" onclick="openGoogleModal()">🔗 Xuất Google</button>
       <a href="admin.html" class="ib" style="text-decoration:none;border-color:rgba(159,110,245,.3);color:var(--purple);" title="Trang quản trị nội dung">⚙️ Admin</a>
+      <div id="auth-area"></div>
     </div>
   </div>
 
@@ -119,6 +120,54 @@
     </div>
   </div>
 </div>
+</div>
+
+<!-- ══ AUTH MODAL ══════════════════════════════════════════ -->
+<div class="overlay" id="authModal">
+  <div class="mbox auth-mbox">
+    <div class="mbox-title">👤 Tài khoản thành viên</div>
+    <div class="mbox-sub">Đăng nhập để đồng bộ tiến độ học tập trên mọi thiết bị</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="auth-tab-login"    onclick="switchAuthTab('login')">Đăng nhập</button>
+      <button class="auth-tab"        id="auth-tab-register" onclick="switchAuthTab('register')">Đăng ký</button>
+    </div>
+    <!-- Login -->
+    <div id="auth-form-login">
+      <div class="auth-field">
+        <label class="auth-lbl">Email</label>
+        <input class="auth-inp" type="email" id="auth-email" placeholder="email@example.com" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div class="auth-field">
+        <label class="auth-lbl">Mật khẩu</label>
+        <input class="auth-inp" type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+    </div>
+    <!-- Register -->
+    <div id="auth-form-register" style="display:none">
+      <div class="auth-field">
+        <label class="auth-lbl">Tên hiển thị</label>
+        <input class="auth-inp" type="text" id="auth-reg-name" placeholder="Nguyễn Văn A" autocomplete="name">
+      </div>
+      <div class="auth-field">
+        <label class="auth-lbl">Email</label>
+        <input class="auth-inp" type="email" id="auth-reg-email" placeholder="email@example.com" autocomplete="email">
+      </div>
+      <div class="auth-field">
+        <label class="auth-lbl">Mật khẩu</label>
+        <input class="auth-inp" type="password" id="auth-reg-pass" placeholder="Tối thiểu 6 ký tự" autocomplete="new-password">
+      </div>
+      <div class="auth-field">
+        <label class="auth-lbl">Xác nhận mật khẩu</label>
+        <input class="auth-inp" type="password" id="auth-reg-pass2" placeholder="Nhập lại mật khẩu" autocomplete="new-password" onkeydown="if(event.key==='Enter')doRegister()">
+      </div>
+    </div>
+    <div class="auth-err" id="auth-err"></div>
+    <button class="auth-submit-btn" id="auth-action-btn" onclick="doLogin()">Đăng nhập</button>
+    <div class="auth-switch" id="auth-switch">
+      Chưa có tài khoản? <span onclick="switchAuthTab('register')">Đăng ký ngay</span>
+    </div>
+    <button class="mclose" onclick="closeAuthModal()" style="width:100%;margin-top:.3rem;">Đóng</button>
+  </div>
 </div>
 
 <!-- ══ GOOGLE MODAL ══════════════════════════════════════════ -->

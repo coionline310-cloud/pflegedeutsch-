@@ -459,6 +459,7 @@ function addXP(n,label=''){
   if(label) toast(`+${n} XP · ${label}`);
   if(cur.min>prev.min) showLevelUp(cur);
   checkBadges();
+  if(window._scheduleCloudSave) window._scheduleCloudSave();
 }
 function getLevel(xp){
   let lv=LEVELS[0];
@@ -501,7 +502,10 @@ function checkBadges(){
 // ════════════════════════════════════════════════════════
 let SRS_DB={};// key=de, val={interval,ease,due,reps}
 
-function saveSRS(){try{localStorage.setItem('srs_db',JSON.stringify(SRS_DB));}catch(e){}}
+function saveSRS(){
+  try{localStorage.setItem('srs_db',JSON.stringify(SRS_DB));}catch(e){}
+  if(window._scheduleCloudSave) window._scheduleCloudSave();
+}
 function loadSRS(){try{const d=localStorage.getItem('srs_db');if(d)SRS_DB=JSON.parse(d);}catch(e){}}
 
 function reviewSRS(p,q){
@@ -1686,8 +1690,11 @@ function doExportSheets(){
 updateXPUI();
 renderDashboard();
 window.speechSynthesis&&window.speechSynthesis.getVoices();
-// Welcome XP
-setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
+// Welcome XP — only once per browser session, only for brand-new users
+if(!sessionStorage.getItem('_wXP')){
+  sessionStorage.setItem('_wXP','1');
+  setTimeout(()=>{if(GS.xp===0)addXP(10,'Chào mừng đến PflegeDeutsch V4!');},2000);
+}
 
 // ════════════════════════════════════════════════════════
 // 🔴 LIVE DATA — Supabase Realtime (đồng bộ với admin.html)
@@ -1706,6 +1713,196 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
     realtime: { params: { eventsPerSecond: 10 } }
   });
   window.sbLive = sb;
+
+  // ════════════════════════════════════════════════════════
+  // AUTH — Đăng nhập / Đăng ký / Tiến độ thành viên
+  // ════════════════════════════════════════════════════════
+  let _currentUser = null;
+  let _cloudSaveTimer = null;
+
+  // Debounced cloud save (2s after last change)
+  function scheduleCloudSave(){
+    clearTimeout(_cloudSaveTimer);
+    _cloudSaveTimer = setTimeout(pushProgress, 2000);
+  }
+  window._scheduleCloudSave = scheduleCloudSave;
+
+  async function pushProgress(){
+    if(!_currentUser) return;
+    const {error} = await sb.from('user_progress').upsert({
+      user_id: _currentUser.id,
+      srs_db: SRS_DB,
+      game_state: GS,
+      updated_at: new Date().toISOString()
+    }, {onConflict:'user_id'});
+    if(error) console.warn('[auth] save error:', error.message);
+  }
+
+  async function pullProgress(){
+    if(!_currentUser) return;
+    const {data,error} = await sb.from('user_progress')
+      .select('*').eq('user_id',_currentUser.id).single();
+    if(error && error.code!=='PGRST116'){
+      console.warn('[auth] load error:', error.message); return;
+    }
+    if(data){
+      if(data.srs_db && Object.keys(data.srs_db).length){
+        SRS_DB = data.srs_db;
+        try{localStorage.setItem('srs_db',JSON.stringify(SRS_DB));}catch(e){}
+      }
+      if(data.game_state && Object.keys(data.game_state).length){
+        Object.assign(GS, data.game_state);
+      }
+      updateXPUI();
+      rerenderActive();
+    }
+  }
+
+  // ── UI helpers ──────────────────────────────────────────
+  function getAvatarColor(email){
+    let h=0; for(let i=0;i<email.length;i++) h=(h*31+email.charCodeAt(i))&0xffff;
+    const colors=['#4fa3ff','#9f6ef5','#2fd17a','#ff8533','#f06090','#25cba8','#f0c040'];
+    return colors[h%colors.length];
+  }
+
+  function renderAuthUI(user){
+    _currentUser = user;
+    const el = document.getElementById('auth-area');
+    if(!el) return;
+    if(user){
+      const email = user.email||'';
+      const name = user.user_metadata?.display_name || email.split('@')[0];
+      const initials = name.slice(0,2).toUpperCase();
+      const color = getAvatarColor(email);
+      el.innerHTML=`
+        <div class="auth-user-wrap">
+          <div class="auth-user" onclick="toggleUserMenu(event)">
+            <div class="auth-avatar" style="background:${color}">${initials}</div>
+            <span class="auth-uname">${name}</span>
+            <span class="auth-chevron">▾</span>
+          </div>
+          <div class="auth-drop" id="auth-drop" style="display:none">
+            <div class="auth-drop-hdr">
+              <div class="auth-drop-av" style="background:${color}">${initials}</div>
+              <div><div class="auth-drop-name">${name}</div><div class="auth-drop-email">${email}</div></div>
+            </div>
+            <div class="auth-drop-div"></div>
+            <div class="auth-drop-it" onclick="navTo('dashboard');toggleUserMenu()">📊 Dashboard của tôi</div>
+            <div class="auth-drop-it" onclick="navTo('srs');toggleUserMenu()">🔁 Ôn tập SRS</div>
+            <div class="auth-drop-div"></div>
+            <div class="auth-drop-it auth-drop-out" onclick="doSignOut()">🚪 Đăng xuất</div>
+          </div>
+        </div>`;
+    } else {
+      el.innerHTML=`<button class="auth-login-btn" onclick="openAuthModal()">👤 Đăng nhập</button>`;
+    }
+  }
+
+  // ── Global functions exposed to HTML onclick ─────────────
+  window.openAuthModal = function(tab){
+    const m=document.getElementById('authModal');
+    if(m){ m.classList.add('on'); switchAuthTab(tab||'login'); }
+  };
+  window.closeAuthModal = function(){
+    const m=document.getElementById('authModal');
+    if(m) m.classList.remove('on');
+  };
+  window.switchAuthTab = function(tab){
+    document.getElementById('auth-tab-login').classList.toggle('active',tab==='login');
+    document.getElementById('auth-tab-register').classList.toggle('active',tab==='register');
+    document.getElementById('auth-form-login').style.display  = tab==='login'?'block':'none';
+    document.getElementById('auth-form-register').style.display = tab==='register'?'block':'none';
+    const err=document.getElementById('auth-err');
+    err.textContent=''; err.className='auth-err';
+    const btn=document.getElementById('auth-action-btn');
+    btn.textContent = tab==='login'?'Đăng nhập':'Tạo tài khoản';
+    btn.onclick     = tab==='login'?window.doLogin:window.doRegister;
+    const sw=document.getElementById('auth-switch');
+    sw.innerHTML = tab==='login'
+      ? 'Chưa có tài khoản? <span onclick="switchAuthTab(\'register\')">Đăng ký ngay</span>'
+      : 'Đã có tài khoản? <span onclick="switchAuthTab(\'login\')">Đăng nhập</span>';
+  };
+  window.doLogin = async function(){
+    const email=document.getElementById('auth-email').value.trim();
+    const pass=document.getElementById('auth-pass').value;
+    const err=document.getElementById('auth-err');
+    if(!email||!pass){err.textContent='Vui lòng nhập email và mật khẩu.';return;}
+    const btn=document.getElementById('auth-action-btn');
+    btn.disabled=true; btn.textContent='Đang đăng nhập...';
+    const {error} = await sb.auth.signInWithPassword({email,password:pass});
+    btn.disabled=false; btn.textContent='Đăng nhập';
+    if(error){err.textContent=error.message==='Invalid login credentials'?'Email hoặc mật khẩu không đúng.':error.message;}
+  };
+  window.doRegister = async function(){
+    const name =document.getElementById('auth-reg-name').value.trim();
+    const email=document.getElementById('auth-reg-email').value.trim();
+    const pass =document.getElementById('auth-reg-pass').value;
+    const pass2=document.getElementById('auth-reg-pass2').value;
+    const err  =document.getElementById('auth-err');
+    if(!email||!pass){err.textContent='Vui lòng nhập đầy đủ thông tin.';return;}
+    if(pass!==pass2){err.textContent='Mật khẩu xác nhận không khớp.';return;}
+    if(pass.length<6){err.textContent='Mật khẩu tối thiểu 6 ký tự.';return;}
+    const btn=document.getElementById('auth-action-btn');
+    btn.disabled=true; btn.textContent='Đang đăng ký...';
+    const {error} = await sb.auth.signUp({
+      email, password:pass,
+      options:{data:{display_name:name||email.split('@')[0]}}
+    });
+    btn.disabled=false; btn.textContent='Tạo tài khoản';
+    if(error){err.textContent=error.message;return;}
+    err.className='auth-err ok';
+    err.textContent='✓ Đăng ký thành công! Kiểm tra email để xác nhận tài khoản (hoặc đăng nhập ngay nếu không cần xác nhận).';
+  };
+  window.doSignOut = async function(){
+    clearTimeout(_cloudSaveTimer);
+    await pushProgress(); // save before logout
+    await sb.auth.signOut();
+    toast('Đã đăng xuất');
+  };
+  window.toggleUserMenu = function(e){
+    if(e) e.stopPropagation();
+    const d=document.getElementById('auth-drop');
+    if(d) d.style.display = d.style.display==='none'?'block':'none';
+  };
+  document.addEventListener('click', e=>{
+    if(!e.target.closest('.auth-user-wrap')){
+      const d=document.getElementById('auth-drop');
+      if(d) d.style.display='none';
+    }
+  });
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Escape'){
+      window.closeAuthModal && window.closeAuthModal();
+    }
+  });
+
+  // ── Auth state listener ──────────────────────────────────
+  sb.auth.onAuthStateChange(async (event, session) => {
+    const user = session?.user || null;
+    renderAuthUI(user);
+    if(event==='SIGNED_IN'){
+      window.closeAuthModal();
+      await pullProgress();
+      const name = user.user_metadata?.display_name || user.email.split('@')[0];
+      toast(`Xin chào ${name}! Đã đồng bộ tiến độ học ☁️`);
+      renderDashboard();
+    } else if(event==='SIGNED_OUT'){
+      loadSRS();
+      Object.assign(GS,{xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:''});
+      updateXPUI();
+      renderDashboard();
+    }
+  });
+
+  // Check existing session on load
+  sb.auth.getSession().then(({data:{session}}) => {
+    if(session){
+      renderAuthUI(session.user);
+      pullProgress().then(()=>renderDashboard());
+    } else {
+      renderAuthUI(null);
+    }
+  });
 
   // ── Đồng bộ danh mục từ DB → CAT_META + sidebar ──
   let _catsFirstLoad=true;
