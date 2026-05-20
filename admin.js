@@ -894,13 +894,29 @@ async function checkDB(){
   }
 
   // 3. Tables exist + read
-  for(const tbl of ['phrases','dialogues','dialogue_lines','levels','badges']){
+  for(const tbl of ['phrases','dialogues','dialogue_lines','levels','badges','categories']){
     const {count,error}=await sb.from(tbl).select('*',{count:'exact',head:true});
     if(error)lines.push(fail(`Bảng "${tbl}": ${error.message}`));
     else lines.push(ok(`Bảng "${tbl}": ${count} dòng`));
   }
 
-  // 4. Write permission test
+  // 4. Kiểm tra anon đọc được categories không (giả lập index.html)
+  lines.push('<span style="color:var(--t2);font-weight:600;">── Kiểm tra quyền anon (index.html) ──</span>');
+  try {
+    const anonResp = await fetch(SB_URL+'/rest/v1/categories?select=id,key,label&limit=1', {
+      headers:{'apikey':SB_KEY,'Content-Type':'application/json'}
+    });
+    if(anonResp.ok){
+      lines.push(ok('Anon đọc categories → index.html nhận được danh mục ✓'));
+    } else {
+      const err=await anonResp.json().catch(()=>({}));
+      lines.push(fail('Anon KHÔNG đọc được categories → index.html sẽ dùng danh mục mặc định'));
+      lines.push(warn('Nguyên nhân: thiếu RLS policy cho anon. Chạy SQL bên dưới để fix!'));
+      document.getElementById('fixCatBtn').style.display='inline-flex';
+    }
+  } catch(e){
+    lines.push(fail('Anon test lỗi: '+e.message));
+  }
   const testRow={category:'__test__',group_name:'test',de:'test',vi:'test',sort_order:0};
   const {data:ins,error:insErr}=await sb.from('phrases').insert(testRow).select().single();
   if(insErr)lines.push(fail('Quyền INSERT phrases: '+insErr.message));
@@ -923,6 +939,11 @@ async function checkDB(){
 
   setSeedResult('<div style="line-height:1.9;font-size:.79rem;">'+lines.join('<br>')+'</div>');
   btn.disabled=false;btn.textContent='🔍 Kiểm tra kết nối';
+}
+
+function showFixCatSQL(){
+  const el=document.getElementById('fixCatSQL');
+  if(el) el.style.display='block';
 }
 
 async function seedPhrases(){

@@ -15,6 +15,7 @@ const CAT_META={
 };
 const PHRASE_CATS=['patient','colleague','handover','emergency'];
 const VOCAB_CATS=['vocab','anatomy','medication','documentation','nursing_process','mental'];
+let _dynCats=[];
 
 // Compact DATA — representative subset (full version has 300+ items)
 let DATA={
@@ -540,7 +541,7 @@ function getSRSTag(p){
 // ════════════════════════════════════════════════════════
 const flashState={};
 let activeFCCat=null;
-function flatCat(cat){let a=[];DATA[cat].forEach(g=>g.i.forEach(p=>a.push({...p,cat})));return a;}
+function flatCat(cat){if(!DATA[cat])return[];let a=[];DATA[cat].forEach(g=>g.i.forEach(p=>a.push({...p,cat})));return a;}
 function flatAll(){let a=[];Object.keys(DATA).forEach(c=>flatCat(c).forEach(p=>a.push(p)));return a;}
 function shuffle(arr){let a=[...arr];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function esc(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
@@ -571,23 +572,71 @@ function recomputeCounts(){
 recomputeCounts();
 
 // ════════════════════════════════════════════════════════
-// NAV
+// NAV — dynamic sidebar
 // ════════════════════════════════════════════════════════
-document.querySelectorAll('.nav-it[data-page]').forEach(it=>{
-  it.addEventListener('click',()=>{
-    const pg=it.dataset.page;
-    document.querySelectorAll('.nav-it').forEach(i=>i.classList.remove('active'));
-    it.classList.add('active');
-    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-    document.getElementById('page-'+pg).classList.add('active');
-    if(!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg))ensurePage(pg);
-    if(pg==='dashboard')renderDashboard();
-    if(pg==='dialogue')renderDialogues();
-    if(pg==='srs')renderSRS();
-    if(pg==='roleplay')renderRoleplay();
-    if(window.innerWidth<720)document.getElementById('sidebar').classList.remove('open');
+// Convert default CAT_META → format giống DB categories để dùng khi Supabase chưa load
+function getDefaultCatsList(){
+  const list=[];
+  PHRASE_CATS.forEach((k,i)=>{
+    if(CAT_META[k]) list.push({key:k,label:CAT_META[k].l,icon:CAT_META[k].ic,section:'communication',sort_order:i+1});
   });
+  VOCAB_CATS.forEach((k,i)=>{
+    if(CAT_META[k]) list.push({key:k,label:CAT_META[k].l,icon:CAT_META[k].ic,section:'vocabulary',sort_order:PHRASE_CATS.length+i+1});
+  });
+  return list;
+}
+const CAT_COLORS=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c7)','var(--c8)','var(--pink)','var(--purple)','var(--teal)','var(--orange)','var(--yellow)','var(--green)','var(--blue)'];
+
+function navTo(pg){
+  document.querySelectorAll('.nav-it').forEach(i=>i.classList.remove('active'));
+  const ni=document.querySelector('.nav-it[data-page="'+pg+'"]');
+  if(ni) ni.classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const pageEl=document.getElementById('page-'+pg);
+  if(pageEl) pageEl.classList.add('active');
+  if(!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg))ensurePage(pg);
+  if(pg==='dashboard')renderDashboard();
+  if(pg==='dialogue')renderDialogues();
+  if(pg==='srs')renderSRS();
+  if(pg==='roleplay')renderRoleplay();
+  if(window.innerWidth<720)document.getElementById('sidebar').classList.remove('open');
+}
+
+function buildSidebarCats(catsList){
+  if(catsList) _dynCats=catsList;
+  if(!_dynCats.length) return;
+  const commEl=document.getElementById('nav-comm-cats');
+  const vocabEl=document.getElementById('nav-vocab-cats');
+  if(!commEl||!vocabEl) return;
+  const commCats=_dynCats.filter(c=>c.section==='communication');
+  const vocabCats=_dynCats.filter(c=>c.section!=='communication');
+  const makeNavHTML=(cats,colorOff)=>cats.map((c,i)=>{
+    const color=c.color||CAT_COLORS[(colorOff+i)%CAT_COLORS.length];
+    return `<div class="nav-it" data-page="${c.key}" style="--tc:${color}" onclick="navTo('${c.key}')"><span class="nav-ic">${c.icon}</span>${c.label}<span class="nav-badge" id="cnt-${c.key}"></span></div>`;
+  }).join('');
+  commEl.innerHTML=makeNavHTML(commCats,0);
+  vocabEl.innerHTML=makeNavHTML(vocabCats,4);
+  // Ensure page divs exist for all categories (including new ones)
+  const main=document.querySelector('.main');
+  const refPage=document.getElementById('page-dialogue');
+  _dynCats.forEach(c=>{
+    if(!document.getElementById('page-'+c.key)){
+      const div=document.createElement('div');
+      div.className='page';
+      div.id='page-'+c.key;
+      if(refPage&&main) main.insertBefore(div,refPage);
+      else if(main) main.appendChild(div);
+    }
+  });
+  recomputeCounts();
+}
+
+document.querySelectorAll('.nav-it[data-page]').forEach(it=>{
+  it.addEventListener('click',()=>navTo(it.dataset.page));
 });
+
+// Render ngay từ CAT_META mặc định — Supabase sẽ gọi lại buildSidebarCats() khi load xong
+buildSidebarCats(getDefaultCatsList());
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');}
 document.addEventListener('click',e=>{
   if(window.innerWidth<720&&!e.target.closest('.sidebar')&&!e.target.closest('.menu-btn'))
@@ -599,8 +648,10 @@ document.addEventListener('click',e=>{
 // ════════════════════════════════════════════════════════
 function ensurePage(cat){
   const page=document.getElementById('page-'+cat);
-  if(page.innerHTML)return;
-  const meta=CAT_META[cat],isV=VOCAB_CATS.includes(cat);
+  if(!page||page.innerHTML)return;
+  const meta=CAT_META[cat];
+  if(!meta)return;
+  const isV=VOCAB_CATS.includes(cat);
   page.innerHTML=`
     <div class="ph">
       <div class="pt">${meta.ic} ${meta.l}</div>
@@ -616,6 +667,7 @@ function ensurePage(cat){
     <div id="${cat}-tv" style="display:none;"></div>`;
 }
 function renderListH(cat,isV){
+  if(!DATA[cat]||!DATA[cat].length) return `<div style="text-align:center;padding:3rem 1rem;color:var(--t3);font-size:.85rem;">Chưa có nội dung. Hãy thêm qua trang <a href="admin.html" style="color:var(--blue)">Admin</a>.</div>`;
   function itemHTML(p){
     const safeDE=p.de.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
     const safeVI=p.vi.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
@@ -1524,6 +1576,34 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
   });
   window.sbLive = sb;
 
+  // ── Đồng bộ danh mục từ DB → CAT_META + sidebar ──
+  let _catsFirstLoad=true;
+  async function syncCategories(){
+    const {data,error}=await sb.from('categories').select('*').order('sort_order').order('id');
+    if(error){
+      console.warn('[live] categories: không đọc được (anon RLS?):', error.message);
+      console.warn('[live] Fix: chạy trong Supabase SQL Editor:\nCREATE POLICY "categories_read_anon" ON public.categories FOR SELECT TO anon USING (true);');
+      return false;
+    }
+    if(!data||!data.length) return false;
+    Object.keys(CAT_META).forEach(k=>delete CAT_META[k]);
+    const newPhrase=[],newVocab=[];
+    data.forEach(c=>{
+      CAT_META[c.key]={l:c.label,ic:c.icon,c:c.color||'var(--t2)'};
+      if(c.section==='communication') newPhrase.push(c.key);
+      else newVocab.push(c.key);
+    });
+    PHRASE_CATS.splice(0,PHRASE_CATS.length,...newPhrase);
+    VOCAB_CATS.splice(0,VOCAB_CATS.length,...newVocab);
+    // Ensure DATA has an entry for every category (even if phrases not loaded yet)
+    data.forEach(c=>{ if(!DATA[c.key]) DATA[c.key]=[]; });
+    buildSidebarCats(data);
+    // On realtime events (not first boot), refresh the active page so label/icon updates
+    if(!_catsFirstLoad) rerenderActive();
+    _catsFirstLoad=false;
+    return true;
+  }
+
   const COND_FACTORY = {
     xp:             v => s=>s.xp>=v,
     flashDone:      v => s=>s.flashDone>=v,
@@ -1536,30 +1616,18 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
   };
 
   async function loadAll(){
-    const [p, d, l, b, cats] = await Promise.all([
+    const [p, d, l, b] = await Promise.all([
       sb.from('phrases').select('*').order('category').order('sort_order').order('id'),
       sb.from('dialogues').select('*, dialogue_lines(*)').order('sort_order').order('id'),
       sb.from('levels').select('*').order('min_xp'),
-      sb.from('badges').select('*').order('sort_order').order('id'),
-      sb.from('categories').select('*').order('sort_order').order('id')
+      sb.from('badges').select('*').order('sort_order').order('id')
     ]);
     // phrases & dialogues là bắt buộc; levels/badges có thể dùng defaults
     if(p.error){ console.warn('[live] phrases error:', p.error?.message); return false; }
     if(d.error){ console.warn('[live] dialogues error:', d.error?.message); return false; }
     if(l.error) console.warn('[live] levels error (dùng defaults):', l.error?.message);
     if(b.error) console.warn('[live] badges error (dùng defaults):', b.error?.message);
-    // ── Categories → CAT_META, PHRASE_CATS, VOCAB_CATS ──
-    if(cats.data && cats.data.length){
-      Object.keys(CAT_META).forEach(k=>delete CAT_META[k]);
-      const newPhrase=[],newVocab=[];
-      cats.data.forEach(c=>{
-        CAT_META[c.key]={l:c.label,ic:c.icon,c:c.color||'var(--t2)'};
-        if(c.section==='communication') newPhrase.push(c.key);
-        else newVocab.push(c.key);
-      });
-      PHRASE_CATS.splice(0,PHRASE_CATS.length,...newPhrase);
-      VOCAB_CATS.splice(0,VOCAB_CATS.length,...newVocab);
-    }
+    // categories đã được xử lý bởi syncCategories() — không cần làm lại ở đây
     // ── Phrases → DATA ──
     if((p.data||[]).length){
       const newData = {};
@@ -1583,6 +1651,8 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
         }));
       });
       DATA = newData;
+      // Ensure all known categories have an entry (even if empty)
+      Object.keys(CAT_META).forEach(c=>{ if(!DATA[c]) DATA[c]=[]; });
     }
     // ── Dialogues ──
     if((d.data||[]).length){
@@ -1652,15 +1722,16 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
     }, 350);
   }
 
-  // Boot
+  // Boot — categories trước để CAT_META sẵn sàng trước khi render phrases
   (async ()=>{
-    const ok = await loadAll();
+    await syncCategories(); // đồng bộ danh mục trước (cập nhật CAT_META)
+    const ok = await loadAll(); // sau đó load phrases/dialogues/levels/badges
     if(ok){
       rerenderActive();
       firstSync = false;
       console.info('[live] Đồng bộ Supabase OK');
     } else {
-      console.warn('[live] Không tải được dữ liệu — dùng default. Kiểm tra RLS policy cho role anon hoặc đăng nhập.');
+      console.warn('[live] Không tải được dữ liệu — dùng default. Kiểm tra RLS policy cho role anon.');
     }
   })();
 
@@ -1670,4 +1741,8 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
       .on('postgres_changes', { event:'*', schema:'public', table: tbl }, debouncedReload)
       .subscribe(status=>{ if(status==='SUBSCRIBED') console.info('[live] Realtime ON:', tbl); });
   });
+  // categories cập nhật sidebar ngay lập tức, không cần reload toàn bộ
+  sb.channel('rt:categories')
+    .on('postgres_changes', { event:'*', schema:'public', table:'categories' }, ()=>syncCategories())
+    .subscribe(status=>{ if(status==='SUBSCRIBED') console.info('[live] Realtime ON: categories'); });
 })();
