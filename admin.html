@@ -663,20 +663,25 @@ async function doLogin(){
   err.style.display='none';
   if(!email||!pwd){err.textContent='Vui lòng nhập email và mật khẩu.';err.style.display='block';return;}
   btn.disabled=true; btn.textContent='Đang đăng nhập...';
+  let loginUser = null;
   try {
     const loginPromise = sb.auth.signInWithPassword({email, password:pwd});
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Kết nối đến máy chủ quá chậm. Vui lòng kiểm tra mạng và thử lại.')), 12000)
+      setTimeout(() => reject(new Error('Kết nối quá chậm. Vui lòng kiểm tra mạng và thử lại.')), 12000)
     );
     const {data, error} = await Promise.race([loginPromise, timeoutPromise]);
-    if(error){err.textContent=error.message;err.style.display='block';return;}
-    currentUser = data.user;
-    await initApp();
+    if(error){err.textContent=error.message;err.style.display='block';}
+    else{loginUser = data.user;}
   } catch(e) {
     err.textContent = e?.message || 'Lỗi kết nối. Vui lòng thử lại.';
     err.style.display='block';
   } finally {
+    // Button luôn được reset sau bước auth, trước khi initApp chạy
     btn.disabled=false; btn.textContent='Đăng nhập';
+  }
+  if(loginUser){
+    currentUser = loginUser;
+    await initApp();
   }
 }
 
