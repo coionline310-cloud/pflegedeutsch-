@@ -496,22 +496,14 @@ function checkBadges(){
 }
 
 // ════════════════════════════════════════════════════════
-// SRS — Spaced Repetition System (SM-2 simplified)
+// SRS — Spaced Repetition System (SM-2)
 // ════════════════════════════════════════════════════════
 let SRS_DB={};// key=de, val={interval,ease,due,reps}
-function getSRSCard(){
-  const all=flatAll();
-  const now=Date.now();
-  // Due first
-  const due=all.filter(p=>{const s=SRS_DB[p.de];return s&&s.due<=now;});
-  if(due.length) return shuffle(due)[0];
-  // New
-  const nw=all.filter(p=>!SRS_DB[p.de]);
-  if(nw.length) return nw[0];
-  return shuffle(all)[0];
-}
+
+function saveSRS(){try{localStorage.setItem('srs_db',JSON.stringify(SRS_DB));}catch(e){}}
+function loadSRS(){try{const d=localStorage.getItem('srs_db');if(d)SRS_DB=JSON.parse(d);}catch(e){}}
+
 function reviewSRS(p,q){
-  // q: 0=hard,3=ok,5=easy
   let s=SRS_DB[p.de]||{interval:1,ease:2.5,reps:0,due:0};
   if(q>=3){
     s.reps++;
@@ -524,16 +516,31 @@ function reviewSRS(p,q){
   }
   s.due=Date.now()+s.interval*86400000;
   SRS_DB[p.de]=s;
+  saveSRS();
   if(q>=4){GS.mastered++;document.getElementById('s-mastered').textContent=GS.mastered;}
   addXP(q>=4?10:q>=3?5:2,'SRS');
   GS.flashDone++;
 }
-function countDue(){return flatAll().filter(p=>{const s=SRS_DB[p.de];return s&&s.due<=Date.now();}).length;}
+function countDue(cat){
+  const cards=cat&&cat!=='all'?flatCat(cat):flatAll();
+  return cards.filter(p=>{const s=SRS_DB[p.de];return s&&s.due<=Date.now();}).length;
+}
 function getSRSTag(p){
   const s=SRS_DB[p.de];
   if(!s) return {tag:'new',label:'Mới'};
   if(s.due<=Date.now()) return {tag:'due',label:'Cần ôn'};
   return {tag:'review',label:'Đã học'};
+}
+
+// Session state — queue-based to prevent premature "Done"
+const srsQ={queue:[],idx:0,card:null,flipped:false,ok:0,done:0,cat:'all',newLimit:10,xpEarned:0};
+
+function buildSRSQueue(cat,newLimit){
+  const pool=cat&&cat!=='all'?flatCat(cat):flatAll();
+  const now=Date.now();
+  const due=shuffle(pool.filter(p=>{const s=SRS_DB[p.de];return s&&s.due<=now;}));
+  const nw=pool.filter(p=>!SRS_DB[p.de]).slice(0,newLimit);
+  return [...due,...nw];
 }
 
 // ════════════════════════════════════════════════════════
@@ -978,78 +985,140 @@ function shuffleTyping(cat){
 // ════════════════════════════════════════════════════════
 function renderSRS(){
   const el=document.getElementById('srs-main');
-  const dueCount=countDue();
-  const newCount=flatAll().filter(p=>!SRS_DB[p.de]).length;
+  const all=flatAll();
+  const now=Date.now();
+  const dueCount=all.filter(p=>{const s=SRS_DB[p.de];return s&&s.due<=now;}).length;
+  const newCount=all.filter(p=>!SRS_DB[p.de]).length;
+  const learnedCount=all.filter(p=>{const s=SRS_DB[p.de];return s&&s.due>now;}).length;
+  const totalReviewed=all.filter(p=>SRS_DB[p.de]).length;
+
+  // Category options
+  const cats=_dynCats.length?_dynCats:getDefaultCatsList();
+  const catOpts=cats.map(c=>`<option value="${c.key}"${srsQ.cat===c.key?'selected':''}>${c.icon||''} ${c.label}</option>`).join('');
+
   el.innerHTML=`
-    <div class="srs-banner">
-      <div class="srs-banner-icon">🔁</div>
-      <div class="srs-banner-info">
-        <div class="srs-banner-title">${dueCount} thẻ cần ôn hôm nay · ${newCount} thẻ mới</div>
-        <div class="srs-banner-sub">Thuật toán SM-2 nhắc nhở đúng lúc để nhớ lâu nhất</div>
+    <div class="srs-overview">
+      <div class="srs-stats-row">
+        <div class="srs-stat-card srs-stat-due"><div class="srs-stat-num">${dueCount}</div><div class="srs-stat-lbl">Cần ôn hôm nay</div></div>
+        <div class="srs-stat-card srs-stat-new"><div class="srs-stat-num">${newCount}</div><div class="srs-stat-lbl">Thẻ mới</div></div>
+        <div class="srs-stat-card srs-stat-learned"><div class="srs-stat-num">${learnedCount}</div><div class="srs-stat-lbl">Đã thuộc</div></div>
       </div>
-      <button class="srs-start-btn" onclick="startSRSSession()">Bắt đầu ôn tập</button>
-    </div>
-    <div id="srs-session"></div>`;
+      <div class="srs-cfg">
+        <div class="srs-cfg-row">
+          <label class="srs-cfg-lbl">Danh mục</label>
+          <select class="srs-cfg-sel" onchange="srsQ.cat=this.value">
+            <option value="all"${srsQ.cat==='all'?' selected':''}>📚 Tất cả</option>
+            ${catOpts}
+          </select>
+        </div>
+        <div class="srs-cfg-row">
+          <label class="srs-cfg-lbl">Thẻ mới mỗi phiên</label>
+          <div class="srs-limit-btns">
+            ${[5,10,20,50].map(n=>`<button class="srs-limit-btn${srsQ.newLimit===n?' active':''}" onclick="srsQ.newLimit=${n};renderSRS()">${n}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+      <button class="srs-start-btn srs-start-big" onclick="startSRSSession()" ${dueCount===0&&newCount===0?'disabled':''}>
+        ${dueCount>0?`🔁 Ôn ${dueCount} thẻ hôm nay`:`✨ Học ${Math.min(srsQ.newLimit,newCount)} thẻ mới`}
+      </button>
+      ${dueCount===0&&newCount===0?'<div class="srs-allgood">🎉 Tuyệt vời! Hôm nay bạn đã hoàn thành tất cả. Quay lại ngày mai nhé!</div>':''}
+      ${totalReviewed>0?`<div class="srs-prog-row"><div class="srs-prog-bar" style="width:${Math.round(learnedCount/all.length*100)}%"></div></div><div class="srs-prog-lbl">${learnedCount}/${all.length} thẻ đã học (${Math.round(learnedCount/all.length*100)}%)</div>`:''}
+    </div>`;
 }
-let srsCard=null,srsFlipped=false,srsSessionOk=0,srsSessionDone=0;
+
 function startSRSSession(){
-  srsCard=getSRSCard();
-  srsFlipped=false;
-  const due=countDue(),newC=flatAll().filter(p=>!SRS_DB[p.de]).length;
-  const srsTag=getSRSTag(srsCard);
-  document.getElementById('srs-session').innerHTML=`
-    <div style="display:flex;gap:8px;margin-bottom:.9rem;flex-wrap:wrap;">
-      <div style="background:rgba(255,77,77,.08);border:1px solid rgba(255,77,77,.2);border-radius:8px;padding:4px 12px;font-size:.74rem;color:var(--red);font-weight:600;">${due} cần ôn hôm nay</div>
-      <div style="background:rgba(79,163,255,.08);border:1px solid rgba(79,163,255,.2);border-radius:8px;padding:4px 12px;font-size:.74rem;color:var(--blue);font-weight:600;">${newC} thẻ mới</div>
-      <div style="background:rgba(47,209,122,.08);border:1px solid rgba(47,209,122,.2);border-radius:8px;padding:4px 12px;font-size:.74rem;color:var(--green);font-weight:600;">✓ ${srsSessionOk} đúng hôm nay</div>
+  const queue=buildSRSQueue(srsQ.cat,srsQ.newLimit);
+  if(!queue.length){renderSRS();return;}
+  srsQ.queue=queue;
+  srsQ.idx=0;
+  srsQ.ok=0;
+  srsQ.done=0;
+  srsQ.xpEarned=0;
+  srsQ.flipped=false;
+  renderSRSCard();
+}
+
+function renderSRSCard(){
+  const el=document.getElementById('srs-main');
+  const card=srsQ.queue[srsQ.idx];
+  if(!card){renderSRSDone();return;}
+  srsQ.card=card;
+  srsQ.flipped=false;
+  const tag=getSRSTag(card);
+  const pct=Math.round(srsQ.idx/srsQ.queue.length*100);
+  el.innerHTML=`
+    <div class="srs-session-hdr">
+      <button class="srs-back-btn" onclick="renderSRS()">← Thoát</button>
+      <div class="srs-progress-wrap">
+        <div class="srs-progress-bar"><div class="srs-progress-fill" style="width:${pct}%"></div></div>
+        <div class="srs-progress-lbl">${srsQ.idx}/${srsQ.queue.length} · ✓${srsQ.ok} ✗${srsQ.done-srsQ.ok}</div>
+      </div>
     </div>
     <div class="fc-wrap">
       <div class="fc-scene" onclick="flipSRS()">
         <div class="fc-card" id="srs-card">
           <div class="fc-face fc-front">
-            <div style="position:absolute;top:10px;right:12px;font-size:.62rem;padding:2px 7px;border-radius:8px;font-weight:600;background:${srsTag.tag==='due'?'rgba(255,77,77,.15)':srsTag.tag==='new'?'rgba(79,163,255,.15)':'rgba(47,209,122,.12)'};color:${srsTag.tag==='due'?'var(--red)':srsTag.tag==='new'?'var(--blue)':'var(--green)'};">${srsTag.label}</div>
+            <span class="fc-srs-tag ${tag.tag}">${tag.label}</span>
             <div class="fc-lang">🇩🇪 Tiếng Đức</div>
-            <div class="fc-txt">${srsCard.de}</div>
-            ${srsCard.n?'<div class="fc-note">💡 '+srsCard.n+'</div>':''}
+            <div class="fc-txt">${card.de}</div>
+            ${card.n?'<div class="fc-note">💡 '+card.n+'</div>':''}
             <div class="fc-hint">Nhấn để xem nghĩa ↓</div>
           </div>
           <div class="fc-face fc-back">
+            <span class="fc-srs-tag ${tag.tag}">${tag.label}</span>
             <div class="fc-lang">🇻🇳 Tiếng Việt</div>
-            <div class="fc-txt">${srsCard.vi}</div>
-            <div style="font-size:.7rem;color:var(--t3);margin-top:.6rem;">${CAT_META[srsCard.cat]?.ic||''} ${CAT_META[srsCard.cat]?.l||''}</div>
+            <div class="fc-txt">${card.vi}</div>
+            <div style="font-size:.7rem;color:var(--t3);margin-top:.6rem;">${CAT_META[card.cat]?.ic||''} ${CAT_META[card.cat]?.l||''}</div>
           </div>
         </div>
       </div>
       <div class="fc-rate" id="srs-rate" style="display:none;">
-        <button class="fc-rb hard" onclick="rateSRS(0)">😓 Khó · Ôn lại sớm</button>
-        <button class="fc-rb ok"   onclick="rateSRS(3)">👍 Nhớ được (+5 XP)</button>
-        <button class="fc-rb easy" onclick="rateSRS(5)">⚡ Thuộc rồi (+10 XP)</button>
+        <button class="fc-rb hard" onclick="rateSRS(0)">😓 Khó</button>
+        <button class="fc-rb ok"   onclick="rateSRS(3)">👍 Nhớ được</button>
+        <button class="fc-rb easy" onclick="rateSRS(5)">⚡ Thuộc rồi</button>
       </div>
-      <button style="margin-top:.5rem;background:transparent;border:1px solid var(--b2);color:var(--t3);padding:4px 12px;border-radius:7px;font-size:.72rem;" onclick="renderSRS()">↩ Về màn hình SRS</button>
-    </div>`
-  ;
+      <div class="srs-speak-row">
+        <button class="srs-speak-btn" onclick="speakDE('${esc(card.de)}')">🔊 Nghe phát âm</button>
+      </div>
+    </div>`;
 }
+
+function renderSRSDone(){
+  const el=document.getElementById('srs-main');
+  el.innerHTML=`
+    <div class="srs-done">
+      <div class="srs-done-ic">🎉</div>
+      <div class="srs-done-title">Phiên hoàn thành!</div>
+      <div class="srs-done-stats">
+        <div class="srs-done-stat"><span class="srs-done-n ok">${srsQ.ok}</span><span>đúng</span></div>
+        <div class="srs-done-stat"><span class="srs-done-n fail">${srsQ.done-srsQ.ok}</span><span>sai</span></div>
+        <div class="srs-done-stat"><span class="srs-done-n xp">+${srsQ.xpEarned}</span><span>XP</span></div>
+      </div>
+      <div class="srs-done-sub">Bạn đã ôn ${srsQ.done} thẻ. Hệ thống sẽ nhắc lại đúng lúc bạn sắp quên!</div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <button class="srs-start-btn" onclick="startSRSSession()">🔄 Ôn tiếp</button>
+        <button class="srs-start-btn" style="background:var(--s3);color:var(--tx);" onclick="renderSRS()">← Về tổng quan</button>
+      </div>
+    </div>`;
+}
+
 function flipSRS(){
-  if(!srsFlipped){document.getElementById('srs-card').classList.add('flip');document.getElementById('srs-rate').style.display='flex';srsFlipped=true;}
+  if(!srsQ.flipped){
+    document.getElementById('srs-card').classList.add('flip');
+    document.getElementById('srs-rate').style.display='flex';
+    srsQ.flipped=true;
+  }
 }
 function rateSRS(q){
-  reviewSRS(srsCard,q);
-  srsSessionDone++;
-  if(q>=3)srsSessionOk++;
+  reviewSRS(srsQ.card,q);
+  srsQ.done++;
+  if(q>=3) srsQ.ok++;
+  srsQ.xpEarned+=(q>=4?10:q>=3?5:2);
   updateXPUI();
-  // Check if all due cards reviewed
-  const remaining=countDue();
-  if(remaining===0&&srsSessionDone>0){
-    document.getElementById('srs-session').innerHTML=`
-      <div style="text-align:center;padding:2rem 1rem;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rl);">
-        <div style="font-size:3rem;margin-bottom:.5rem;">🎉</div>
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:.3rem;">Hôm nay hoàn thành!</div>
-        <div style="color:var(--t2);font-size:.82rem;margin-bottom:1rem;">Bạn đã ôn ${srsSessionDone} thẻ · ${srsSessionOk} đúng · Hệ thống sẽ nhắc lại đúng lúc bạn sắp quên!</div>
-        <button class="srs-start-btn" onclick="srsSessionOk=0;srsSessionDone=0;startSRSSession()">Học thẻ mới tiếp</button>
-      </div>`;
-    return;
-  }
-  setTimeout(()=>startSRSSession(),280);
+  // Hard card: push a copy to end of queue so it repeats this session
+  if(q===0) srsQ.queue.push({...srsQ.card});
+  srsQ.idx++;
+  setTimeout(renderSRSCard,280);
 }
 
 // ════════════════════════════════════════════════════════
@@ -1723,6 +1792,7 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
   }
 
   // Boot — categories trước để CAT_META sẵn sàng trước khi render phrases
+  loadSRS(); // khôi phục tiến độ SRS từ localStorage
   (async ()=>{
     await syncCategories(); // đồng bộ danh mục trước (cập nhật CAT_META)
     const ok = await loadAll(); // sau đó load phrases/dialogues/levels/badges
