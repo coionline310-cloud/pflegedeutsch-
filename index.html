@@ -1085,6 +1085,7 @@ function getSRSTag(p){
 // CORE HELPERS
 // ════════════════════════════════════════════════════════
 const flashState={};
+let activeFCCat=null;
 function flatCat(cat){let a=[];DATA[cat].forEach(g=>g.i.forEach(p=>a.push({...p,cat})));return a;}
 function flatAll(){let a=[];Object.keys(DATA).forEach(c=>flatCat(c).forEach(p=>a.push(p)));return a;}
 function shuffle(arr){let a=[...arr];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
@@ -1170,6 +1171,7 @@ function setPMode(cat,mode,btn){
   btn.parentElement.querySelectorAll('.mt').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
   document.getElementById(cat+'-lv').style.display=mode==='list'?'':'none';
   document.getElementById(cat+'-fv').style.display=mode==='flash'?'':'none';
+  activeFCCat=mode==='flash'?cat:null;
   if(mode==='flash'){initFC(cat);renderFC(cat);}
 }
 
@@ -1198,6 +1200,7 @@ function renderFC(cat){
             <div class="fc-face fc-back">
               <div class="fc-lang">🇻🇳 Tiếng Việt</div>
               <div class="fc-txt" id="${cat}-fbt"></div>
+              <div class="fc-hint">Nhấn để lật lại ↑</div>
             </div>
           </div>
         </div>
@@ -1235,7 +1238,16 @@ function updateFC(cat){
 }
 function flipFC(cat){
   const s=flashState[cat];
-  if(!s.flipped){document.getElementById(cat+'-fc').classList.add('flip');document.getElementById(cat+'-fcr').style.display='flex';s.flipped=true;}
+  const card=document.getElementById(cat+'-fc');
+  if(!s.flipped){
+    card.classList.add('flip');
+    document.getElementById(cat+'-fcr').style.display='flex';
+    s.flipped=true;
+  } else {
+    card.classList.remove('flip');
+    document.getElementById(cat+'-fcr').style.display='none';
+    s.flipped=false;
+  }
 }
 function rateFC(cat,q){
   const s=flashState[cat],p=s.items[s.idx];
@@ -1246,6 +1258,14 @@ function rateFC(cat,q){
 }
 function navFC(cat,d){const s=flashState[cat];s.idx=(s.idx+d+s.items.length)%s.items.length;updateFC(cat);}
 function shuffleFC(cat){const s=flashState[cat];s.items=shuffle(s.items);s.idx=0;updateFC(cat);}
+
+document.addEventListener('keydown',e=>{
+  if(!activeFCCat) return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  if(e.code==='Space'){e.preventDefault();flipFC(activeFCCat);}
+  else if(e.code==='ArrowRight'){e.preventDefault();navFC(activeFCCat,1);}
+  else if(e.code==='ArrowLeft'){e.preventDefault();navFC(activeFCCat,-1);}
+});
 
 // ════════════════════════════════════════════════════════
 // SRS PAGE
