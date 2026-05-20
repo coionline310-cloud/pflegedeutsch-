@@ -553,6 +553,10 @@ function speakDE(text){
   if(vs.length)u.voice=vs[0];
   window.speechSynthesis.speak(u);
 }
+function speakCurrentFC(cat,e){e.stopPropagation();const s=flashState[cat];if(s)speakDE(s.items[s.idx].de);}
+function speakCurrentTyping(cat){const s=typingState[cat];if(s)speakDE(s.items[s.idx].de);}
+
+const typingState={};
 
 // COUNT
 let totalItems=0;
@@ -604,16 +608,19 @@ function ensurePage(cat){
       <div class="mode-tabs">
         <button class="mt active" onclick="setPMode('${cat}','list',this)">📋 Danh sách</button>
         <button class="mt" onclick="setPMode('${cat}','flash',this)">🃏 Flashcard</button>
+        <button class="mt" onclick="setPMode('${cat}','type',this)">⌨️ Gõ chính tả</button>
       </div>
     </div>
     <div id="${cat}-lv">${renderListH(cat,isV)}</div>
-    <div id="${cat}-fv" style="display:none;"></div>`;
+    <div id="${cat}-fv" style="display:none;"></div>
+    <div id="${cat}-tv" style="display:none;"></div>`;
 }
 function renderListH(cat,isV){
   function itemHTML(p){
     const note=p.n?('<div class="'+(isV?'vi2-n':'pi-note')+'">💡 '+p.n+'</div>'):'';
-    if(isV) return '<div class="vi2"><div class="vi2-de">'+p.de+'</div><div class="vi2-vi">'+p.vi+'</div>'+note+'</div>';
-    return '<div class="pi"><div class="pi-de">'+p.de+'</div><div class="pi-vi">'+p.vi+'</div>'+note+'</div>';
+    const spk=`<button class="pi-speak" onclick="speakDE(${JSON.stringify(p.de)})" title="Phát âm">🔊</button>`;
+    if(isV) return '<div class="vi2"><div class="vi2-de">'+p.de+spk+'</div><div class="vi2-vi">'+p.vi+'</div>'+note+'</div>';
+    return '<div class="pi"><div class="pi-de">'+p.de+spk+'</div><div class="pi-vi">'+p.vi+'</div>'+note+'</div>';
   }
   return DATA[cat].map(g=>`
     <div class="grp">
@@ -625,8 +632,10 @@ function setPMode(cat,mode,btn){
   btn.parentElement.querySelectorAll('.mt').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
   document.getElementById(cat+'-lv').style.display=mode==='list'?'':'none';
   document.getElementById(cat+'-fv').style.display=mode==='flash'?'':'none';
+  document.getElementById(cat+'-tv').style.display=mode==='type'?'':'none';
   activeFCCat=mode==='flash'?cat:null;
   if(mode==='flash'){initFC(cat);renderFC(cat);}
+  if(mode==='type'){initTyping(cat);renderTyping(cat);}
 }
 
 // ════════════════════════════════════════════════════════
@@ -646,6 +655,7 @@ function renderFC(cat){
         <div class="fc-scene" onclick="flipFC('${cat}')">
           <div class="fc-card" id="${cat}-fc">
             <div class="fc-face fc-front">
+              <button class="fc-speak" onclick="speakCurrentFC('${cat}',event)" title="Phát âm">🔊</button>
               <div class="fc-lang">🇩🇪 Tiếng Đức</div>
               <div class="fc-txt" id="${cat}-fft"></div>
               <div class="fc-note" id="${cat}-ffn"></div>
@@ -720,6 +730,111 @@ document.addEventListener('keydown',e=>{
   else if(e.code==='ArrowRight'){e.preventDefault();navFC(activeFCCat,1);}
   else if(e.code==='ArrowLeft'){e.preventDefault();navFC(activeFCCat,-1);}
 });
+
+// ════════════════════════════════════════════════════════
+// TYPING MODE ENGINE
+// ════════════════════════════════════════════════════════
+function initTyping(cat){
+  if(!typingState[cat])typingState[cat]={items:shuffle(flatCat(cat)),idx:0,answered:false};
+}
+function renderTyping(cat){
+  const el=document.getElementById(cat+'-tv');
+  if(!el)return;
+  if(!el.innerHTML){
+    el.innerHTML=`
+      <div class="ty-wrap">
+        <div class="fc-prog-row">
+          <div class="fc-pb"><div class="fc-pb-fill" id="${cat}-tp" style="width:0%"></div></div>
+          <div class="fc-pc" id="${cat}-tpc">&nbsp;</div>
+        </div>
+        <div class="ty-card">
+          <div class="fc-lang">🇻🇳 Đọc nghĩa — Gõ tiếng Đức</div>
+          <div class="ty-vi" id="${cat}-tvi"></div>
+          <div class="ty-note" id="${cat}-tn"></div>
+        </div>
+        <div class="ty-input-row">
+          <input class="ty-inp" id="${cat}-tinp" type="text"
+            placeholder="Gõ tiếng Đức tại đây..."
+            autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="none"
+            onkeydown="handleTypingKey(event,'${cat}')">
+        </div>
+        <div class="ty-result" id="${cat}-tres" style="display:none;"></div>
+        <div class="ty-actions" id="${cat}-tact">
+          <button class="ty-btn ty-btn-hint" onclick="hintTyping('${cat}')">💡 Gợi ý</button>
+          <button class="ty-btn ty-btn-check" onclick="submitTyping('${cat}')">✓ Kiểm tra</button>
+        </div>
+        <div class="fc-nav">
+          <button class="fc-nb" onclick="navTyping('${cat}',-1)">← Trước</button>
+          <button class="fc-shuf" onclick="shuffleTyping('${cat}')">🔀 Xáo</button>
+          <button class="fc-nb" onclick="navTyping('${cat}',1)">Tiếp →</button>
+        </div>
+      </div>`;
+  }
+  updateTyping(cat);
+}
+function updateTyping(cat){
+  const s=typingState[cat],p=s.items[s.idx];
+  document.getElementById(cat+'-tvi').textContent=p.vi;
+  document.getElementById(cat+'-tn').textContent=p.n?'💡 '+p.n:'';
+  const inp=document.getElementById(cat+'-tinp');
+  inp.value='';inp.disabled=false;inp.className='ty-inp';
+  const res=document.getElementById(cat+'-tres');
+  res.style.display='none';res.innerHTML='';
+  document.getElementById(cat+'-tact').innerHTML=`
+    <button class="ty-btn ty-btn-hint" onclick="hintTyping('${cat}')">💡 Gợi ý</button>
+    <button class="ty-btn ty-btn-check" onclick="submitTyping('${cat}')">✓ Kiểm tra</button>`;
+  s.answered=false;
+  const pct=Math.round((s.idx+1)/s.items.length*100);
+  document.getElementById(cat+'-tp').style.width=pct+'%';
+  document.getElementById(cat+'-tpc').textContent=`${s.idx+1}/${s.items.length}`;
+  inp.focus();
+}
+function handleTypingKey(e,cat){
+  if(e.key!=='Enter')return;
+  const inp=document.getElementById(cat+'-tinp');
+  if(!inp.disabled)submitTyping(cat);
+  else navTyping(cat,1);
+}
+function submitTyping(cat){
+  const s=typingState[cat],p=s.items[s.idx];
+  const inp=document.getElementById(cat+'-tinp');
+  const ans=inp.value.trim();
+  if(!ans){inp.focus();return;}
+  const norm=t=>t.toLowerCase().trim().replace(/\s+/g,' ');
+  const correct=norm(ans)===norm(p.de);
+  inp.disabled=true;
+  inp.classList.add(correct?'correct':'wrong');
+  const res=document.getElementById(cat+'-tres');
+  res.style.display='flex';
+  if(correct){
+    res.className='ty-result ty-correct';
+    res.innerHTML=`✅ Chính xác! <button class="ty-speak-btn" onclick="speakCurrentTyping('${cat}')">🔊 Phát âm</button>`;
+    if(!s.answered){addXP(8,'Gõ đúng');GS.flashDone++;s.answered=true;}
+  } else {
+    res.className='ty-result ty-wrong';
+    res.innerHTML=`❌ Đáp án: <strong>${p.de}</strong> <button class="ty-speak-btn" onclick="speakCurrentTyping('${cat}')">🔊</button>`;
+  }
+  document.getElementById(cat+'-tact').innerHTML=
+    `<button class="ty-btn ty-btn-next" onclick="navTyping('${cat}',1)">Tiếp theo →</button>`;
+}
+function hintTyping(cat){
+  const s=typingState[cat],p=s.items[s.idx];
+  const inp=document.getElementById(cat+'-tinp');
+  if(inp.disabled)return;
+  const hintLen=Math.max(2,Math.ceil(p.de.length/3));
+  inp.value=p.de.substring(0,hintLen);
+  inp.focus();inp.setSelectionRange(hintLen,hintLen);
+}
+function navTyping(cat,d){
+  const s=typingState[cat];
+  s.idx=(s.idx+d+s.items.length)%s.items.length;
+  updateTyping(cat);
+}
+function shuffleTyping(cat){
+  const s=typingState[cat];
+  s.items=shuffle(s.items);s.idx=0;
+  updateTyping(cat);
+}
 
 // ════════════════════════════════════════════════════════
 // SRS PAGE
