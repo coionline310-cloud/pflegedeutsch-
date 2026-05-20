@@ -168,6 +168,19 @@
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- Dictionary Popup -->
+<div class="dict-popup" id="dict-popup" style="display:none">
+  <button class="dict-close" onclick="hideDictPopup()" title="Đóng">✕</button>
+  <div class="dict-de">
+    <span id="dict-de-txt"></span>
+    <button class="dict-speak-btn" onclick="speakDE(document.getElementById('dict-de-txt').textContent)">🔊</button>
+  </div>
+  <div class="dict-vi" id="dict-vi-txt"></div>
+  <div class="dict-note" id="dict-note"></div>
+  <div class="dict-ex" id="dict-ex"></div>
+  <div class="dict-srs" id="dict-srs"></div>
+</div>
+
 <!-- Supabase realtime (auto-sync with admin.html) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>if(!window.supabase){document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"><\/script>');}</script>
