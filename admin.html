@@ -36,7 +36,7 @@ a{color:var(--blue);text-decoration:none;}
 .btn-pri{width:100%;padding:.7rem;background:linear-gradient(135deg,var(--blue2),var(--blue));color:#fff;border:none;border-radius:var(--r);font-size:.88rem;font-weight:600;transition:opacity .14s;}
 .btn-pri:hover{opacity:.9;}
 .btn-pri:disabled{opacity:.5;cursor:not-allowed;}
-.login-err{background:rgba(255,77,77,.1);border:1px solid rgba(255,77,77,.2);border-radius:var(--r);padding:.6rem .85rem;font-size:.79rem;color:var(--red);margin-bottom:.8rem;display:none;}
+.login-err{background:rgba(255,77,77,.1);border:1px solid rgba(255,77,77,.2);border-radius:var(--r);padding:.6rem .85rem;font-size:.79rem;color:var(--red);margin-bottom:.8rem;display:none;white-space:pre-line;line-height:1.6;}
 
 /* ── LAYOUT ─────────────────────────────────────────────── */
 #adminApp{display:none;min-height:100vh;}
@@ -655,26 +655,45 @@ function toast(msg, isErr=false){
 // ══════════════════════════════════════════════════════════
 // AUTH
 // ══════════════════════════════════════════════════════════
+function showLoginErr(msg){
+  const el = document.getElementById('loginErr');
+  el.textContent = msg; el.style.display='block';
+}
+function hideLoginErr(){
+  document.getElementById('loginErr').style.display='none';
+}
+
 async function doLogin(){
   const email = document.getElementById('loginEmail').value.trim();
   const pwd   = document.getElementById('loginPwd').value;
-  const err   = document.getElementById('loginErr');
   const btn   = document.getElementById('loginBtn');
-  err.style.display='none';
-  if(!email||!pwd){err.textContent='Vui lòng nhập email và mật khẩu.';err.style.display='block';return;}
+  hideLoginErr();
+  if(!email||!pwd){showLoginErr('Vui lòng nhập email và mật khẩu.');return;}
+  if(!window.supabase){showLoginErr('Lỗi: Thư viện Supabase chưa tải. Hãy kiểm tra kết nối mạng và tải lại trang.');return;}
+
   btn.disabled=true; btn.textContent='Đang đăng nhập...';
-  const {data, error} = await sb.auth.signInWithPassword({email, password:pwd});
-  btn.disabled=false; btn.textContent='Đăng nhập';
-  if(error){err.textContent=error.message;err.style.display='block';return;}
-  currentUser = data.user;
-  await initApp();
+  try {
+    const {data, error} = await sb.auth.signInWithPassword({email, password:pwd});
+    if(error) throw error;
+    currentUser = data.user;
+    await initApp();
+  } catch(e) {
+    const msg = e.message||'';
+    if(msg.includes('Invalid login credentials')) showLoginErr('Sai email hoặc mật khẩu. Hãy kiểm tra lại.');
+    else if(msg.includes('Email not confirmed')) showLoginErr('Email chưa được xác nhận. Vào Supabase → Authentication → Users → Confirm email.');
+    else if(msg.includes('Failed to fetch') || msg.includes('NetworkError')) showLoginErr('Không kết nối được Supabase. Kiểm tra SUPABASE_URL trong config.js và kết nối mạng.');
+    else showLoginErr('Lỗi đăng nhập: ' + msg);
+  } finally {
+    btn.disabled=false; btn.textContent='Đăng nhập';
+  }
 }
 
 async function doLogout(){
-  await sb.auth.signOut();
+  try { await sb.auth.signOut(); } catch(e){}
   currentUser = null; currentProfile = null;
   document.getElementById('adminApp').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
+  hideLoginErr();
 }
 
 document.getElementById('loginPwd').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
@@ -685,15 +704,25 @@ document.getElementById('loginEmail').addEventListener('keydown',e=>{if(e.key===
 // ══════════════════════════════════════════════════════════
 async function initApp(){
   // Load profile
-  const {data:profile} = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
-  if(!profile){
-    document.getElementById('loginErr').textContent='Không tìm thấy profile. Vui lòng kiểm tra lại.';
-    document.getElementById('loginErr').style.display='block';
+  const {data:profile, error:profErr} = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  if(profErr || !profile){
+    // Profile chưa tồn tại — có thể trigger handle_new_user chưa chạy
+    showLoginErr(
+      'Không tìm thấy profile cho tài khoản này.\n' +
+      'Hãy vào Supabase → SQL Editor → chạy:\n' +
+      'select * from public.profiles;\n' +
+      'Nếu không có dòng nào, chạy lại schema SQL để tạo trigger.'
+    );
+    await sb.auth.signOut();
     return;
   }
   if(!['super_admin','editor'].includes(profile.role)){
-    document.getElementById('loginErr').textContent='Bạn không có quyền truy cập Admin Panel (cần role editor hoặc super_admin).';
-    document.getElementById('loginErr').style.display='block';
+    showLoginErr(
+      'Tài khoản này có role "' + profile.role + '" — chưa đủ quyền.\n' +
+      'Cần role "super_admin" hoặc "editor".\n' +
+      'Vào Supabase → SQL Editor → chạy:\n' +
+      'update public.profiles set role=\'super_admin\' where username=\'' + (profile.username||'') + '\';'
+    );
     await sb.auth.signOut();
     return;
   }
@@ -1374,10 +1403,18 @@ function esc(s){
 // AUTO-LOGIN CHECK
 // ══════════════════════════════════════════════════════════
 (async()=>{
-  const {data:{session}} = await sb.auth.getSession();
-  if(session){
-    currentUser = session.user;
-    await initApp();
+  if(!window.supabase){
+    showLoginErr('Lỗi: Không tải được thư viện Supabase. Kiểm tra kết nối mạng và tải lại trang.');
+    return;
+  }
+  try {
+    const {data:{session}} = await sb.auth.getSession();
+    if(session){
+      currentUser = session.user;
+      await initApp();
+    }
+  } catch(e){
+    showLoginErr('Lỗi kết nối Supabase: ' + (e.message||e));
   }
 })();
 </script>
