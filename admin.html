@@ -392,20 +392,28 @@ select.finp{cursor:pointer;}
     <div class="ph"><div class="ph-left"><div class="pt">⚙️ Cài đặt</div><div class="ps">Nhập dữ liệu mặc định và quản lý hệ thống</div></div></div>
 
     <div class="settings-section">
+      <div class="settings-title">🔍 Kiểm tra kết nối Supabase</div>
+      <div class="settings-desc">Chạy trước khi import để xác nhận bảng tồn tại, quyền write OK, và seed-data.js đã load.</div>
+      <div class="settings-row">
+        <button class="btn btn-blue" id="checkDbBtn" onclick="checkDB()">🔍 Kiểm tra kết nối</button>
+      </div>
+      <div id="seedResult" style="margin-top:.7rem;font-size:.79rem;line-height:1.7;"></div>
+    </div>
+
+    <div class="settings-section">
       <div class="settings-title">📥 Nhập dữ liệu mặc định</div>
-      <div class="warn-box">⚠️ Chức năng này sẽ thêm toàn bộ dữ liệu mặc định vào Supabase. Nếu đã có dữ liệu, nó sẽ không bị xóa mà chỉ thêm mới.</div>
+      <div class="warn-box">⚠️ Import sẽ XÓA dữ liệu hiện có trong từng danh mục rồi thêm mới từ seed-data.js (tránh trùng lặp).</div>
       <div class="settings-desc">
-        Import từ <strong>seed-data.js</strong> — bao gồm tất cả từ vựng, cụm từ giao tiếp và hội thoại mẫu cho điều dưỡng tiếng Đức.
+        Import từ <strong>seed-data.js</strong> — bao gồm tất cả từ vựng, cụm từ giao tiếp và hội thoại mẫu.
       </div>
       <div class="settings-row">
         <button class="btn btn-blue" id="seedPhrasesBtn" onclick="seedPhrases()">📥 Import Từ vựng & Cụm từ</button>
         <button class="btn btn-blue" id="seedDialoguesBtn" onclick="seedDialogues()">📥 Import Hội thoại</button>
         <button class="btn btn-green" id="seedAllBtn" onclick="seedAll()">⚡ Import Tất cả</button>
       </div>
-      <div class="progress-bar-wrap" id="seedProgress">
+      <div class="progress-bar-wrap" id="seedProgress" style="display:none;">
         <div class="progress-bar-fill" id="seedProgressFill" style="width:0%"></div>
       </div>
-      <div id="seedResult" style="margin-top:.7rem;font-size:.78rem;color:var(--t2);"></div>
     </div>
 
     <div class="settings-section">
@@ -1283,75 +1291,177 @@ async function changeUserRole(uid, role){
 }
 
 // ══════════════════════════════════════════════════════════
-// SETTINGS — SEED
+// SETTINGS — DIAGNOSTIC + SEED
 // ══════════════════════════════════════════════════════════
+function setSeedResult(html){document.getElementById('seedResult').innerHTML=html;}
+function logSeed(msg){console.log('[seed]',msg);}
+
+async function checkDB(){
+  const btn=document.getElementById('checkDbBtn');
+  btn.disabled=true;btn.textContent='Đang kiểm tra...';
+  setSeedResult('<span style="color:var(--t2)">Đang kiểm tra Supabase…</span>');
+  const lines=[];
+  const ok=s=>`<span style="color:var(--green)">✓ ${s}</span>`;
+  const fail=s=>`<span style="color:var(--red)">✗ ${s}</span>`;
+  const warn=s=>`<span style="color:var(--yellow)">⚠ ${s}</span>`;
+
+  // 1. Auth
+  const {data:{user}}=await sb.auth.getUser();
+  lines.push(user?ok('Đã đăng nhập: '+user.email):fail('Chưa đăng nhập'));
+
+  // 2. Profile / role
+  if(user){
+    const {data:prof,error:pe}=await sb.from('profiles').select('role').eq('id',user.id).single();
+    if(pe)lines.push(fail('Profile lỗi: '+pe.message));
+    else lines.push(prof&&['super_admin','editor'].includes(prof.role)?ok('Role: '+prof.role):fail('Role không đủ quyền: '+(prof?.role||'?')));
+  }
+
+  // 3. Tables exist + read
+  for(const tbl of ['phrases','dialogues','dialogue_lines','levels','badges']){
+    const {count,error}=await sb.from(tbl).select('*',{count:'exact',head:true});
+    if(error)lines.push(fail(`Bảng "${tbl}": ${error.message}`));
+    else lines.push(ok(`Bảng "${tbl}": ${count} dòng`));
+  }
+
+  // 4. Write permission test
+  const testRow={category:'__test__',group_name:'test',de:'test',vi:'test',sort_order:0};
+  const {data:ins,error:insErr}=await sb.from('phrases').insert(testRow).select().single();
+  if(insErr)lines.push(fail('Quyền INSERT phrases: '+insErr.message));
+  else{
+    lines.push(ok('Quyền INSERT phrases: OK'));
+    const {error:delErr}=await sb.from('phrases').delete().eq('id',ins.id);
+    lines.push(delErr?fail('Quyền DELETE phrases: '+delErr.message):ok('Quyền DELETE phrases: OK'));
+  }
+
+  // 5. Seed data check
+  const sd=window.SEED_DATA_OBJ;
+  if(!sd)lines.push(fail('window.SEED_DATA_OBJ: không tìm thấy (seed-data.js chưa load?)'));
+  else{
+    const cats=Object.keys(sd);
+    const total=cats.reduce((s,c)=>s+sd[c].reduce((a,g)=>a+g.i.length,0),0);
+    lines.push(ok(`Seed data: ${cats.length} danh mục, ${total} mục`));
+  }
+  const dialData=window.SEED_DIALOGUES;
+  lines.push(dialData?ok(`Seed dialogues: ${dialData.length} hội thoại`):fail('window.SEED_DIALOGUES: không tìm thấy'));
+
+  setSeedResult('<div style="line-height:1.9;font-size:.79rem;">'+lines.join('<br>')+'</div>');
+  btn.disabled=false;btn.textContent='🔍 Kiểm tra kết nối';
+}
+
 async function seedPhrases(){
   const btn=document.getElementById('seedPhrasesBtn');
-  // window.SEED_DATA = {DATA, DIALOGUES} — phải lấy .DATA
-  const seedData=window.SEED_DATA_OBJ||window.SEED_DATA?.DATA;
-  if(!seedData){toast('Không tìm thấy dữ liệu trong seed-data.js',true);return;}
+  const seedData=window.SEED_DATA_OBJ;
+  if(!seedData||typeof seedData!=='object'||Array.isArray(seedData)){
+    setSeedResult('<span style="color:var(--red)">✗ Không tìm thấy window.SEED_DATA_OBJ — seed-data.js chưa load?</span>');
+    toast('Không tìm thấy seed data',true);return;
+  }
+  const cats=Object.keys(seedData).filter(c=>Array.isArray(seedData[c]));
+  if(!cats.length){setSeedResult('<span style="color:var(--red)">✗ Seed data rỗng hoặc sai cấu trúc</span>');return;}
+
   btn.disabled=true;btn.textContent='Đang import...';
   showSeedProgress(0);
-  const cats=Object.keys(seedData);
   let total=0;
   cats.forEach(c=>seedData[c].forEach(g=>total+=g.i.length));
-  let inserted=0;
+  logSeed(`Bắt đầu import ${total} phrases / ${cats.length} danh mục`);
+
+  let inserted=0,errs=[];
   for(const cat of cats){
-    const groups=seedData[cat];
-    for(const g of groups){
+    logSeed(`Xóa category: ${cat}`);
+    const {error:delErr}=await sb.from('phrases').delete().eq('category',cat);
+    if(delErr){
+      const msg=`Xóa "${cat}" thất bại: ${delErr.message}`;
+      logSeed('LỖI '+msg);errs.push(msg);continue;
+    }
+    for(const g of seedData[cat]){
       const batch=g.i.map((item,idx)=>({category:cat,group_name:g.g,de:item.de,vi:item.vi,note:item.n||null,sort_order:idx}));
-      const {error}=await sb.from('phrases').upsert(batch,{onConflict:'category,group_name,de',ignoreDuplicates:true});
-      if(error){toast('Lỗi import phrases: '+error.message,true);console.error(error);}
-      else inserted+=batch.length;
-      showSeedProgress(Math.round((inserted)/total*100));
+      logSeed(`  Insert ${cat}/${g.g}: ${batch.length} mục`);
+      const {error}=await sb.from('phrases').insert(batch);
+      if(error){
+        const msg=`Insert "${cat}/${g.g}" thất bại: ${error.message}`;
+        logSeed('LỖI '+msg);errs.push(msg);continue;
+      }
+      inserted+=batch.length;
+      showSeedProgress(Math.round(inserted/total*100));
     }
   }
   btn.disabled=false;btn.textContent='📥 Import Từ vựng & Cụm từ';
   hideSeedProgress();
-  document.getElementById('seedResult').textContent=`✓ Đã import ${inserted} mục từ vựng!`;
-  toast('✓ Import từ vựng hoàn tất!');
-  await loadPhrases(); filterPhrases();
+  logSeed(`Xong: ${inserted} mục, ${errs.length} lỗi`);
+  if(errs.length){
+    setSeedResult(`<span style="color:var(--red)">✗ ${inserted} mục / ${errs.length} lỗi:</span><br><small style="color:var(--t2)">${errs.slice(0,5).map(e=>'• '+e).join('<br>')}${errs.length>5?`<br>... và ${errs.length-5} lỗi khác (xem console)`:''}</small>`);
+    toast(`⚠️ Có ${errs.length} lỗi — xem kết quả`,true);
+  } else {
+    setSeedResult(`<span style="color:var(--green)">✓ Đã import ${inserted} mục từ vựng thành công!</span>`);
+    toast('✓ Import từ vựng hoàn tất!');
+  }
+  await loadPhrases();filterPhrases();
+  return errs.length===0;
 }
 
 async function seedDialogues(){
   const btn=document.getElementById('seedDialoguesBtn');
-  if(!window.SEED_DIALOGUES){toast('Không tìm thấy dữ liệu SEED_DIALOGUES trong seed-data.js',true);return;}
+  const dials=window.SEED_DIALOGUES;
+  if(!Array.isArray(dials)||!dials.length){
+    setSeedResult('<span style="color:var(--red)">✗ Không tìm thấy window.SEED_DIALOGUES — seed-data.js chưa load?</span>');
+    toast('Không tìm thấy seed dialogues',true);return;
+  }
   btn.disabled=true;btn.textContent='Đang import...';
   showSeedProgress(0);
-  const dials=window.SEED_DIALOGUES;
-  let count=0;
+  logSeed(`Bắt đầu import ${dials.length} hội thoại`);
+
+  let count=0,errs=[];
   for(let i=0;i<dials.length;i++){
     const d=dials[i];
-    const {data:existing}=await sb.from('dialogues').select('id').eq('title',d.title).single();
+    logSeed(`Xử lý hội thoại: "${d.title}"`);
+    // Tìm dialogue đã tồn tại (bỏ qua lỗi .single() nếu không tìm thấy)
+    const {data:existing,error:findErr}=await sb.from('dialogues').select('id').eq('title',d.title).maybeSingle();
+    if(findErr){errs.push(`Tìm "${d.title}": ${findErr.message}`);continue;}
+
     let dialId;
     if(existing){
       dialId=existing.id;
-      await sb.from('dialogues').update({icon:d.icon||'💬',difficulty:d.difficulty||'easy',sort_order:i}).eq('id',dialId);
-      await sb.from('dialogue_lines').delete().eq('dialogue_id',dialId);
+      const {error:updErr}=await sb.from('dialogues').update({icon:d.icon||'💬',difficulty:d.diff||d.difficulty||'easy',sort_order:i}).eq('id',dialId);
+      if(updErr){errs.push(`Cập nhật "${d.title}": ${updErr.message}`);continue;}
+      const {error:delLErr}=await sb.from('dialogue_lines').delete().eq('dialogue_id',dialId);
+      if(delLErr){errs.push(`Xóa lines "${d.title}": ${delLErr.message}`);continue;}
     } else {
-      const {data,error}=await sb.from('dialogues').insert({title:d.title,icon:d.icon||'💬',difficulty:d.difficulty||'easy',sort_order:i}).select().single();
-      if(error){toast('Lỗi: '+error.message,true);continue;}
-      dialId=data.id;
+      const {data:ins,error:insErr}=await sb.from('dialogues').insert({title:d.title,icon:d.icon||'💬',difficulty:d.diff||d.difficulty||'easy',sort_order:i}).select('id').single();
+      if(insErr){errs.push(`Tạo "${d.title}": ${insErr.message}`);continue;}
+      dialId=ins.id;
     }
     if(d.lines&&d.lines.length){
       const lp=d.lines.map((l,j)=>({dialogue_id:dialId,role:l.role,de:l.de,vi:l.vi,sort_order:j}));
-      await sb.from('dialogue_lines').insert(lp);
+      const {error:lInsErr}=await sb.from('dialogue_lines').insert(lp);
+      if(lInsErr){errs.push(`Lines "${d.title}": ${lInsErr.message}`);continue;}
     }
     count++;
     showSeedProgress(Math.round((i+1)/dials.length*100));
   }
   btn.disabled=false;btn.textContent='📥 Import Hội thoại';
   hideSeedProgress();
-  document.getElementById('seedResult').textContent=`✓ Đã import ${count} hội thoại!`;
-  toast('✓ Import hội thoại hoàn tất!');
+  logSeed(`Xong: ${count} hội thoại, ${errs.length} lỗi`);
+  if(errs.length){
+    setSeedResult(`<span style="color:var(--red)">✗ ${count} hội thoại / ${errs.length} lỗi:</span><br><small style="color:var(--t2)">${errs.slice(0,5).map(e=>'• '+e).join('<br>')}${errs.length>5?`<br>... và ${errs.length-5} lỗi khác`:''}</small>`);
+    toast(`⚠️ Có ${errs.length} lỗi khi import hội thoại`,true);
+  } else {
+    setSeedResult(`<span style="color:var(--green)">✓ Đã import ${count} hội thoại thành công!</span>`);
+    toast('✓ Import hội thoại hoàn tất!');
+  }
   await loadDialogues();
+  return errs.length===0;
 }
 
 async function seedAll(){
-  await seedPhrases();
-  await seedDialogues();
-  document.getElementById('seedResult').textContent='✓ Import tất cả hoàn tất!';
-  toast('✓ Đã import tất cả!');
+  const btn=document.getElementById('seedAllBtn');
+  btn.disabled=true;btn.textContent='Đang import tất cả...';
+  setSeedResult('<span style="color:var(--t2)">Đang import…</span>');
+  const okP=await seedPhrases();
+  const okD=await seedDialogues();
+  btn.disabled=false;btn.textContent='⚡ Import Tất cả';
+  if(okP&&okD){
+    setSeedResult('<span style="color:var(--green)">✓ Import tất cả hoàn tất!</span>');
+    toast('✓ Đã import tất cả!');
+  }
 }
 
 function showSeedProgress(pct){
