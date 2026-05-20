@@ -321,7 +321,17 @@ async function savePhrase(){
     ({error} = await sb.from('phrases').insert(payload));
   }
   btn.disabled=false; btn.textContent='Lưu';
-  if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';return;}
+  if(error){
+    let msg = error.message||'';
+    if(msg.includes('column') && msg.includes('schema cache')){
+      const col = (msg.match(/'([^']+)' column/)||[])[1]||'example';
+      msg = `Cột '${col}' chưa tồn tại trong database. Hãy chạy lệnh này trong Supabase SQL Editor:\nALTER TABLE public.phrases ADD COLUMN IF NOT EXISTS ${col} text;\nNOTIFY pgrst, 'reload schema';`;
+    }
+    errEl.style.whiteSpace='pre-wrap';
+    errEl.textContent='Lỗi: '+msg;
+    errEl.style.display='block';
+    return;
+  }
   closePhraseModal();
   toast(editPhraseId?'✓ Đã cập nhật!':'✓ Đã thêm mới!');
   await loadPhrases();
