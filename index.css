@@ -402,3 +402,15 @@ kbd{background:var(--s4);border:1px solid var(--b2);border-radius:4px;padding:1p
 .ty-btn-next:hover{filter:brightness(1.12);}
 .ty-speak-btn{background:transparent;border:1px solid currentColor;border-radius:6px;padding:1px 8px;cursor:pointer;font-size:.78rem;opacity:.8;transition:opacity .13s;}
 .ty-speak-btn:hover{opacity:1;}
+
+/* ══ SRS FILTER ROW ════════════════════════════════════ */
+.fc-filter-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:.75rem;}
+.fc-flt{background:transparent;border:1px solid var(--b2);border-radius:20px;color:var(--t3);font-size:.68rem;padding:3px 10px;cursor:pointer;transition:all .13s;white-space:nowrap;}
+.fc-flt b{font-weight:700;margin-left:2px;}
+.fc-flt:hover{border-color:var(--b3);color:var(--t2);}
+.fc-flt.on{background:var(--blue);border-color:var(--blue);color:#fff;}
+
+/* ══ EXAMPLE SENTENCE ════════════════════════════════════ */
+.fc-ex{font-size:.72rem;color:var(--t3);font-style:italic;margin-top:.5rem;max-width:420px;line-height:1.4;}
+.pi-ex{grid-column:1/-1;padding:.18rem .8rem .32rem;font-size:.67rem;color:var(--t3);font-style:italic;}
+.ty-ex{font-size:.75rem;color:var(--t3);font-style:italic;margin-top:.3rem;width:100%;}

@@ -58,6 +58,8 @@ create table if not exists public.phrases (
   updated_at timestamptz not null default now()
 );
 
+alter table public.phrases add column if not exists example text;
+
 create index if not exists idx_phrases_category on public.phrases(category, sort_order);
 -- UNIQUE constraint cần thiết để upsert onConflict hoạt động
 create unique index if not exists idx_phrases_upsert_key on public.phrases(category, group_name, de);
