@@ -541,7 +541,7 @@ function getSRSTag(p){
 // ════════════════════════════════════════════════════════
 const flashState={};
 let activeFCCat=null;
-function flatCat(cat){let a=[];DATA[cat].forEach(g=>g.i.forEach(p=>a.push({...p,cat})));return a;}
+function flatCat(cat){if(!DATA[cat])return[];let a=[];DATA[cat].forEach(g=>g.i.forEach(p=>a.push({...p,cat})));return a;}
 function flatAll(){let a=[];Object.keys(DATA).forEach(c=>flatCat(c).forEach(p=>a.push(p)));return a;}
 function shuffle(arr){let a=[...arr];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function esc(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
@@ -611,7 +611,7 @@ function buildSidebarCats(catsList){
   const commCats=_dynCats.filter(c=>c.section==='communication');
   const vocabCats=_dynCats.filter(c=>c.section!=='communication');
   const makeNavHTML=(cats,colorOff)=>cats.map((c,i)=>{
-    const color=CAT_COLORS[(colorOff+i)%CAT_COLORS.length];
+    const color=c.color||CAT_COLORS[(colorOff+i)%CAT_COLORS.length];
     return `<div class="nav-it" data-page="${c.key}" style="--tc:${color}" onclick="navTo('${c.key}')"><span class="nav-ic">${c.icon}</span>${c.label}<span class="nav-badge" id="cnt-${c.key}"></span></div>`;
   }).join('');
   commEl.innerHTML=makeNavHTML(commCats,0);
@@ -648,8 +648,10 @@ document.addEventListener('click',e=>{
 // ════════════════════════════════════════════════════════
 function ensurePage(cat){
   const page=document.getElementById('page-'+cat);
-  if(page.innerHTML)return;
-  const meta=CAT_META[cat],isV=VOCAB_CATS.includes(cat);
+  if(!page||page.innerHTML)return;
+  const meta=CAT_META[cat];
+  if(!meta)return;
+  const isV=VOCAB_CATS.includes(cat);
   page.innerHTML=`
     <div class="ph">
       <div class="pt">${meta.ic} ${meta.l}</div>
@@ -665,6 +667,7 @@ function ensurePage(cat){
     <div id="${cat}-tv" style="display:none;"></div>`;
 }
 function renderListH(cat,isV){
+  if(!DATA[cat]||!DATA[cat].length) return `<div style="text-align:center;padding:3rem 1rem;color:var(--t3);font-size:.85rem;">Chưa có nội dung. Hãy thêm qua trang <a href="admin.html" style="color:var(--blue)">Admin</a>.</div>`;
   function itemHTML(p){
     const safeDE=p.de.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
     const safeVI=p.vi.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
@@ -1573,7 +1576,8 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
   });
   window.sbLive = sb;
 
-  // ── Load categories NGAY, độc lập với phrases/dialogues ──
+  // ── Đồng bộ danh mục từ DB → CAT_META + sidebar ──
+  let _catsFirstLoad=true;
   async function syncCategories(){
     const {data,error}=await sb.from('categories').select('*').order('sort_order').order('id');
     if(error){
@@ -1591,11 +1595,14 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
     });
     PHRASE_CATS.splice(0,PHRASE_CATS.length,...newPhrase);
     VOCAB_CATS.splice(0,VOCAB_CATS.length,...newVocab);
+    // Ensure DATA has an entry for every category (even if phrases not loaded yet)
+    data.forEach(c=>{ if(!DATA[c.key]) DATA[c.key]=[]; });
     buildSidebarCats(data);
+    // On realtime events (not first boot), refresh the active page so label/icon updates
+    if(!_catsFirstLoad) rerenderActive();
+    _catsFirstLoad=false;
     return true;
   }
-  // Chạy ngay khi trang load
-  syncCategories();
 
   const COND_FACTORY = {
     xp:             v => s=>s.xp>=v,
@@ -1644,6 +1651,8 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
         }));
       });
       DATA = newData;
+      // Ensure all known categories have an entry (even if empty)
+      Object.keys(CAT_META).forEach(c=>{ if(!DATA[c]) DATA[c]=[]; });
     }
     // ── Dialogues ──
     if((d.data||[]).length){
@@ -1713,15 +1722,16 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
     }, 350);
   }
 
-  // Boot
+  // Boot — categories trước để CAT_META sẵn sàng trước khi render phrases
   (async ()=>{
-    const ok = await loadAll();
+    await syncCategories(); // đồng bộ danh mục trước (cập nhật CAT_META)
+    const ok = await loadAll(); // sau đó load phrases/dialogues/levels/badges
     if(ok){
       rerenderActive();
       firstSync = false;
       console.info('[live] Đồng bộ Supabase OK');
     } else {
-      console.warn('[live] Không tải được dữ liệu — dùng default. Kiểm tra RLS policy cho role anon hoặc đăng nhập.');
+      console.warn('[live] Không tải được dữ liệu — dùng default. Kiểm tra RLS policy cho role anon.');
     }
   })();
 
