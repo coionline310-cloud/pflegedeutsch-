@@ -59,6 +59,8 @@ create table if not exists public.phrases (
 );
 
 create index if not exists idx_phrases_category on public.phrases(category, sort_order);
+-- UNIQUE constraint cần thiết để upsert onConflict hoạt động
+create unique index if not exists idx_phrases_upsert_key on public.phrases(category, group_name, de);
 
 -- ─── 4. DIALOGUES (hội thoại + dòng hội thoại) ──────────────────────
 create table if not exists public.dialogues (
