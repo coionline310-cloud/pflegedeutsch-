@@ -572,8 +572,19 @@ function recomputeCounts(){
 recomputeCounts();
 
 // ════════════════════════════════════════════════════════
-// NAV
+// NAV — dynamic sidebar
 // ════════════════════════════════════════════════════════
+// Convert default CAT_META → format giống DB categories để dùng khi Supabase chưa load
+function getDefaultCatsList(){
+  const list=[];
+  PHRASE_CATS.forEach((k,i)=>{
+    if(CAT_META[k]) list.push({key:k,label:CAT_META[k].l,icon:CAT_META[k].ic,section:'communication',sort_order:i+1});
+  });
+  VOCAB_CATS.forEach((k,i)=>{
+    if(CAT_META[k]) list.push({key:k,label:CAT_META[k].l,icon:CAT_META[k].ic,section:'vocabulary',sort_order:PHRASE_CATS.length+i+1});
+  });
+  return list;
+}
 const CAT_COLORS=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c7)','var(--c8)','var(--pink)','var(--purple)','var(--teal)','var(--orange)','var(--yellow)','var(--green)','var(--blue)'];
 
 function navTo(pg){
@@ -623,6 +634,9 @@ function buildSidebarCats(catsList){
 document.querySelectorAll('.nav-it[data-page]').forEach(it=>{
   it.addEventListener('click',()=>navTo(it.dataset.page));
 });
+
+// Render ngay từ CAT_META mặc định — Supabase sẽ gọi lại buildSidebarCats() khi load xong
+buildSidebarCats(getDefaultCatsList());
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');}
 document.addEventListener('click',e=>{
   if(window.innerWidth<720&&!e.target.closest('.sidebar')&&!e.target.closest('.menu-btn'))

@@ -28,21 +28,9 @@
     <div class="nav-sec">Tổng quan</div>
     <div class="nav-it active" data-page="dashboard" style="--tc:var(--blue)"><span class="nav-ic">📊</span>Dashboard</div>
     <div class="nav-sec" id="nav-sec-comm">Giao tiếp</div>
-    <div id="nav-comm-cats">
-      <div class="nav-it" data-page="patient"   style="--tc:var(--c1)"><span class="nav-ic">👤</span>Bệnh nhân<span class="nav-badge" id="cnt-patient"></span></div>
-      <div class="nav-it" data-page="colleague" style="--tc:var(--c2)"><span class="nav-ic">👥</span>Đồng nghiệp<span class="nav-badge" id="cnt-colleague"></span></div>
-      <div class="nav-it" data-page="handover"  style="--tc:var(--c3)"><span class="nav-ic">🔄</span>Bàn giao ca<span class="nav-badge" id="cnt-handover"></span></div>
-      <div class="nav-it" data-page="emergency" style="--tc:var(--c4)"><span class="nav-ic">🚨</span>Khẩn cấp<span class="nav-badge" id="cnt-emergency"></span></div>
-    </div>
+    <div id="nav-comm-cats"></div>
     <div class="nav-sec" id="nav-sec-vocab">Từ vựng</div>
-    <div id="nav-vocab-cats">
-      <div class="nav-it" data-page="vocab"           style="--tc:var(--c5)"><span class="nav-ic">📚</span>Chuyên ngành<span class="nav-badge" id="cnt-vocab"></span></div>
-      <div class="nav-it" data-page="anatomy"         style="--tc:var(--c6)"><span class="nav-ic">🫀</span>Giải phẫu<span class="nav-badge" id="cnt-anatomy"></span></div>
-      <div class="nav-it" data-page="medication"      style="--tc:var(--c7)"><span class="nav-ic">💊</span>Thuốc & ĐT<span class="nav-badge" id="cnt-medication"></span></div>
-      <div class="nav-it" data-page="documentation"   style="--tc:var(--c8)"><span class="nav-ic">📋</span>Hồ sơ & Pháp lý<span class="nav-badge" id="cnt-documentation"></span></div>
-      <div class="nav-it" data-page="nursing_process" style="--tc:var(--pink)"><span class="nav-ic">🩺</span>Quy trình ĐD<span class="nav-badge" id="cnt-nursing_process"></span></div>
-      <div class="nav-it" data-page="mental"          style="--tc:var(--purple)"><span class="nav-ic">🧠</span>Tâm thần & Lão<span class="nav-badge" id="cnt-mental"></span></div>
-    </div>
+    <div id="nav-vocab-cats"></div>
     <div class="nav-sec">Học tập</div>
     <div class="nav-it" data-page="dialogue"  style="--tc:var(--teal)"><span class="nav-ic">💬</span>Hội thoại mẫu<span class="nav-new">MỚI</span></div>
     <div class="nav-it" data-page="srs"       style="--tc:var(--purple)"><span class="nav-ic">🔁</span>Ôn tập thông minh<span class="nav-new">SRS</span></div>
@@ -84,17 +72,7 @@
     <div class="sug-section"><div class="sug-title">📌 Gợi ý ôn tập hôm nay <span class="srs-due-badge" id="srs-due-count"></span></div><div id="dash-suggest"></div></div>
   </div>
 
-  <!-- VOCAB/PHRASE PAGES -->
-  <div class="page" id="page-patient"></div>
-  <div class="page" id="page-colleague"></div>
-  <div class="page" id="page-handover"></div>
-  <div class="page" id="page-emergency"></div>
-  <div class="page" id="page-vocab"></div>
-  <div class="page" id="page-anatomy"></div>
-  <div class="page" id="page-medication"></div>
-  <div class="page" id="page-documentation"></div>
-  <div class="page" id="page-nursing_process"></div>
-  <div class="page" id="page-mental"></div>
+  <!-- VOCAB/PHRASE PAGES — generated dynamically by buildSidebarCats() in app.js -->
 
   <!-- DIALOGUE PAGE -->
   <div class="page" id="page-dialogue">
