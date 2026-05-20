@@ -15,6 +15,7 @@ const CAT_META={
 };
 const PHRASE_CATS=['patient','colleague','handover','emergency'];
 const VOCAB_CATS=['vocab','anatomy','medication','documentation','nursing_process','mental'];
+let _dynCats=[];
 
 // Compact DATA — representative subset (full version has 300+ items)
 let DATA={
@@ -573,20 +574,54 @@ recomputeCounts();
 // ════════════════════════════════════════════════════════
 // NAV
 // ════════════════════════════════════════════════════════
-document.querySelectorAll('.nav-it[data-page]').forEach(it=>{
-  it.addEventListener('click',()=>{
-    const pg=it.dataset.page;
-    document.querySelectorAll('.nav-it').forEach(i=>i.classList.remove('active'));
-    it.classList.add('active');
-    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-    document.getElementById('page-'+pg).classList.add('active');
-    if(!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg))ensurePage(pg);
-    if(pg==='dashboard')renderDashboard();
-    if(pg==='dialogue')renderDialogues();
-    if(pg==='srs')renderSRS();
-    if(pg==='roleplay')renderRoleplay();
-    if(window.innerWidth<720)document.getElementById('sidebar').classList.remove('open');
+const CAT_COLORS=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c7)','var(--c8)','var(--pink)','var(--purple)','var(--teal)','var(--orange)','var(--yellow)','var(--green)','var(--blue)'];
+
+function navTo(pg){
+  document.querySelectorAll('.nav-it').forEach(i=>i.classList.remove('active'));
+  const ni=document.querySelector('.nav-it[data-page="'+pg+'"]');
+  if(ni) ni.classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const pageEl=document.getElementById('page-'+pg);
+  if(pageEl) pageEl.classList.add('active');
+  if(!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg))ensurePage(pg);
+  if(pg==='dashboard')renderDashboard();
+  if(pg==='dialogue')renderDialogues();
+  if(pg==='srs')renderSRS();
+  if(pg==='roleplay')renderRoleplay();
+  if(window.innerWidth<720)document.getElementById('sidebar').classList.remove('open');
+}
+
+function buildSidebarCats(catsList){
+  if(catsList) _dynCats=catsList;
+  if(!_dynCats.length) return;
+  const commEl=document.getElementById('nav-comm-cats');
+  const vocabEl=document.getElementById('nav-vocab-cats');
+  if(!commEl||!vocabEl) return;
+  const commCats=_dynCats.filter(c=>c.section==='communication');
+  const vocabCats=_dynCats.filter(c=>c.section!=='communication');
+  const makeNavHTML=(cats,colorOff)=>cats.map((c,i)=>{
+    const color=CAT_COLORS[(colorOff+i)%CAT_COLORS.length];
+    return `<div class="nav-it" data-page="${c.key}" style="--tc:${color}" onclick="navTo('${c.key}')"><span class="nav-ic">${c.icon}</span>${c.label}<span class="nav-badge" id="cnt-${c.key}"></span></div>`;
+  }).join('');
+  commEl.innerHTML=makeNavHTML(commCats,0);
+  vocabEl.innerHTML=makeNavHTML(vocabCats,4);
+  // Ensure page divs exist for all categories (including new ones)
+  const main=document.querySelector('.main');
+  const refPage=document.getElementById('page-dialogue');
+  _dynCats.forEach(c=>{
+    if(!document.getElementById('page-'+c.key)){
+      const div=document.createElement('div');
+      div.className='page';
+      div.id='page-'+c.key;
+      if(refPage&&main) main.insertBefore(div,refPage);
+      else if(main) main.appendChild(div);
+    }
   });
+  recomputeCounts();
+}
+
+document.querySelectorAll('.nav-it[data-page]').forEach(it=>{
+  it.addEventListener('click',()=>navTo(it.dataset.page));
 });
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');}
 document.addEventListener('click',e=>{
@@ -1548,7 +1583,7 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
     if(d.error){ console.warn('[live] dialogues error:', d.error?.message); return false; }
     if(l.error) console.warn('[live] levels error (dùng defaults):', l.error?.message);
     if(b.error) console.warn('[live] badges error (dùng defaults):', b.error?.message);
-    // ── Categories → CAT_META, PHRASE_CATS, VOCAB_CATS ──
+    // ── Categories → CAT_META, PHRASE_CATS, VOCAB_CATS, sidebar ──
     if(cats.data && cats.data.length){
       Object.keys(CAT_META).forEach(k=>delete CAT_META[k]);
       const newPhrase=[],newVocab=[];
@@ -1559,6 +1594,7 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
       });
       PHRASE_CATS.splice(0,PHRASE_CATS.length,...newPhrase);
       VOCAB_CATS.splice(0,VOCAB_CATS.length,...newVocab);
+      buildSidebarCats(cats.data);
     }
     // ── Phrases → DATA ──
     if((p.data||[]).length){
