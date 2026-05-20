@@ -1287,21 +1287,23 @@ async function changeUserRole(uid, role){
 // ══════════════════════════════════════════════════════════
 async function seedPhrases(){
   const btn=document.getElementById('seedPhrasesBtn');
-  if(!window.SEED_DATA){toast('Không tìm thấy seed-data.js',true);return;}
+  // window.SEED_DATA = {DATA, DIALOGUES} — phải lấy .DATA
+  const seedData=window.SEED_DATA_OBJ||window.SEED_DATA?.DATA;
+  if(!seedData){toast('Không tìm thấy dữ liệu trong seed-data.js',true);return;}
   btn.disabled=true;btn.textContent='Đang import...';
   showSeedProgress(0);
-  const cats=Object.keys(window.SEED_DATA);
-  let total=0,done=0;
-  cats.forEach(c=>window.SEED_DATA[c].forEach(g=>total+=g.i.length));
+  const cats=Object.keys(seedData);
+  let total=0;
+  cats.forEach(c=>seedData[c].forEach(g=>total+=g.i.length));
   let inserted=0;
   for(const cat of cats){
-    const groups=window.SEED_DATA[cat];
+    const groups=seedData[cat];
     for(const g of groups){
       const batch=g.i.map((item,idx)=>({category:cat,group_name:g.g,de:item.de,vi:item.vi,note:item.n||null,sort_order:idx}));
       const {error}=await sb.from('phrases').upsert(batch,{onConflict:'category,group_name,de',ignoreDuplicates:true});
-      if(error){toast('Lỗi: '+error.message,true);}
-      inserted+=batch.length;
-      showSeedProgress(Math.round(inserted/total*100));
+      if(error){toast('Lỗi import phrases: '+error.message,true);console.error(error);}
+      else inserted+=batch.length;
+      showSeedProgress(Math.round((inserted)/total*100));
     }
   }
   btn.disabled=false;btn.textContent='📥 Import Từ vựng & Cụm từ';

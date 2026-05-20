@@ -1868,10 +1868,11 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
       sb.from('levels').select('*').order('min_xp'),
       sb.from('badges').select('*').order('sort_order').order('id')
     ]);
-    if(p.error || d.error || l.error || b.error){
-      console.warn('[live] load lỗi:', p.error||d.error||l.error||b.error);
-      return false;
-    }
+    // phrases & dialogues là bắt buộc; levels/badges có thể dùng defaults
+    if(p.error){ console.warn('[live] phrases error:', p.error?.message); return false; }
+    if(d.error){ console.warn('[live] dialogues error:', d.error?.message); return false; }
+    if(l.error) console.warn('[live] levels error (dùng defaults):', l.error?.message);
+    if(b.error) console.warn('[live] badges error (dùng defaults):', b.error?.message);
     // ── Phrases → DATA ──
     if((p.data||[]).length){
       const newData = {};
