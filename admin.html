@@ -663,11 +663,29 @@ async function doLogin(){
   err.style.display='none';
   if(!email||!pwd){err.textContent='Vui lòng nhập email và mật khẩu.';err.style.display='block';return;}
   btn.disabled=true; btn.textContent='Đang đăng nhập...';
-  const {data, error} = await sb.auth.signInWithPassword({email, password:pwd});
-  btn.disabled=false; btn.textContent='Đăng nhập';
-  if(error){err.textContent=error.message;err.style.display='block';return;}
-  currentUser = data.user;
-  await initApp();
+  let loginUser = null;
+  try {
+    console.log('[LOGIN] Bắt đầu đăng nhập với email:', email);
+    const loginPromise = sb.auth.signInWithPassword({email, password:pwd});
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Kết nối quá chậm. Vui lòng kiểm tra mạng và thử lại.')), 12000)
+    );
+    const {data, error} = await Promise.race([loginPromise, timeoutPromise]);
+    console.log('[LOGIN] Kết quả auth:', {data, error});
+    if(error){err.textContent=error.message;err.style.display='block';}
+    else{loginUser = data.user; console.log('[LOGIN] Auth thành công, user id:', data.user?.id);}
+  } catch(e) {
+    console.error('[LOGIN] Exception:', e);
+    err.textContent = e?.message || 'Lỗi kết nối. Vui lòng thử lại.';
+    err.style.display='block';
+  } finally {
+    btn.disabled=false; btn.textContent='Đăng nhập';
+  }
+  if(loginUser){
+    currentUser = loginUser;
+    console.log('[LOGIN] Gọi initApp...');
+    await initApp();
+  }
 }
 
 async function doLogout(){
@@ -684,10 +702,11 @@ document.getElementById('loginEmail').addEventListener('keydown',e=>{if(e.key===
 // INIT APP
 // ══════════════════════════════════════════════════════════
 async function initApp(){
-  // Load profile
-  const {data:profile} = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  console.log('[INIT] Tải profile cho user id:', currentUser.id);
+  const {data:profile, error:profileErr} = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  console.log('[INIT] Profile result:', {profile, profileErr});
   if(!profile){
-    document.getElementById('loginErr').textContent='Không tìm thấy profile. Vui lòng kiểm tra lại.';
+    document.getElementById('loginErr').textContent='Không tìm thấy profile (id=' + currentUser.id + '). Vui lòng kiểm tra lại.';
     document.getElementById('loginErr').style.display='block';
     return;
   }
