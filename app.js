@@ -16,6 +16,7 @@ const CAT_META={
 const PHRASE_CATS=['patient','colleague','handover','emergency'];
 const VOCAB_CATS=['vocab','anatomy','medication','documentation','nursing_process','mental'];
 let _dynCats=[];
+let _dataFromDB=false; // true after first Supabase loadAll() succeeds
 
 // Compact DATA — representative subset (full version has 300+ items)
 let DATA={
@@ -565,7 +566,8 @@ function recomputeCounts(){
   totalItems=0;
   Object.keys(DATA).forEach(cat=>{
     const n=flatCat(cat).length;totalItems+=n;
-    const el=document.getElementById('cnt-'+cat);if(el)el.textContent=n;
+    const el=document.getElementById('cnt-'+cat);if(el)el.textContent=n||'';
+    const sel=document.getElementById('scnt-'+cat);if(sel)sel.textContent=n||'';
   });
   const tEl=document.getElementById('s-total');if(tEl)tEl.textContent=totalItems;
 }
@@ -591,15 +593,27 @@ function navTo(pg){
   document.querySelectorAll('.nav-it').forEach(i=>i.classList.remove('active'));
   const ni=document.querySelector('.nav-it[data-page="'+pg+'"]');
   if(ni) ni.classList.add('active');
+  // Bottom nav — fixed pages get their own button; category pages highlight "Học từ"
+  document.querySelectorAll('.bn-item[data-page]').forEach(i=>i.classList.remove('active'));
+  const bi=document.querySelector('.bn-item[data-page="'+pg+'"]');
+  if(bi) bi.classList.add('active');
+  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg);
+  const bnCats=document.getElementById('bn-cats-btn');
+  if(bnCats) bnCats.classList.toggle('active',isCatPage);
+  // Category sheet active item
+  document.querySelectorAll('.cats-sheet-it').forEach(i=>i.classList.remove('active'));
+  const sci=document.querySelector('.cats-sheet-it[data-page="'+pg+'"]');
+  if(sci) sci.classList.add('active');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const pageEl=document.getElementById('page-'+pg);
   if(pageEl) pageEl.classList.add('active');
-  if(!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg))ensurePage(pg);
+  if(isCatPage)ensurePage(pg);
   if(pg==='dashboard')renderDashboard();
   if(pg==='dialogue')renderDialogues();
   if(pg==='srs')renderSRS();
   if(pg==='roleplay')renderRoleplay();
   if(window.innerWidth<720)document.getElementById('sidebar').classList.remove('open');
+  closeCatsSheet();
 }
 
 function buildSidebarCats(catsList){
@@ -628,6 +642,22 @@ function buildSidebarCats(catsList){
       else if(main) main.appendChild(div);
     }
   });
+  // Populate mobile category sheet
+  const sheetBody=document.getElementById('catsSheetBody');
+  if(sheetBody){
+    const commList=_dynCats.filter(c=>c.section==='communication');
+    const vocabList=_dynCats.filter(c=>c.section!=='communication');
+    let sh='';
+    if(commList.length){
+      sh+=`<div class="cats-sheet-sec">💬 Giao tiếp</div>`;
+      sh+=commList.map(c=>`<div class="cats-sheet-it" data-page="${c.key}" onclick="navTo('${c.key}')"><span class="cats-sheet-ic">${c.icon}</span>${c.label}<span class="cats-sheet-cnt" id="scnt-${c.key}"></span></div>`).join('');
+    }
+    if(vocabList.length){
+      sh+=`<div class="cats-sheet-sec">📚 Từ vựng</div>`;
+      sh+=vocabList.map(c=>`<div class="cats-sheet-it" data-page="${c.key}" onclick="navTo('${c.key}')"><span class="cats-sheet-ic">${c.icon}</span>${c.label}<span class="cats-sheet-cnt" id="scnt-${c.key}"></span></div>`).join('');
+    }
+    sheetBody.innerHTML=sh;
+  }
   recomputeCounts();
 }
 
@@ -643,6 +673,33 @@ document.addEventListener('click',e=>{
     document.getElementById('sidebar').classList.remove('open');
 });
 
+// ── Theme toggle (dark / light) ──────────────────────────
+function toggleTheme(){
+  const html=document.documentElement;
+  const next=html.dataset.theme==='light'?'dark':'light';
+  html.dataset.theme=next;
+  const btn=document.getElementById('themeBtn');
+  if(btn) btn.textContent=next==='light'?'☀️':'🌙';
+  localStorage.setItem('pd-theme',next);
+}
+(function initTheme(){
+  const t=localStorage.getItem('pd-theme')||'dark';
+  document.documentElement.dataset.theme=t;
+  const btn=document.getElementById('themeBtn');
+  if(btn) btn.textContent=t==='light'?'☀️':'🌙';
+})();
+
+// ── Mobile category sheet ─────────────────────────────────
+function showCatsSheet(){
+  document.getElementById('catsOverlay').classList.add('open');
+  document.getElementById('catsSheet').classList.add('open');
+}
+function closeCatsSheet(){
+  const o=document.getElementById('catsOverlay'),s=document.getElementById('catsSheet');
+  if(o)o.classList.remove('open');
+  if(s)s.classList.remove('open');
+}
+
 // ════════════════════════════════════════════════════════
 // VOCAB/PHRASE PAGES
 // ════════════════════════════════════════════════════════
@@ -652,6 +709,11 @@ function ensurePage(cat){
   const meta=CAT_META[cat];
   if(!meta)return;
   const isV=VOCAB_CATS.includes(cat);
+  // Show skeleton while Supabase is still loading
+  if(!_dataFromDB&&(!DATA[cat]||!DATA[cat].length)){
+    page.innerHTML=`<div class="ph"><span class="skel skel-title"></span><span class="skel skel-line" style="width:28%"></span></div>${'<span class="skel skel-card"></span>'.repeat(5)}`;
+    return;
+  }
   page.innerHTML=`
     <div class="ph">
       <div class="pt">${meta.ic} ${meta.l}</div>
@@ -1727,6 +1789,7 @@ setTimeout(()=>addXP(10,'Chào mừng đến PflegeDeutsch V4!'),800);
     await syncCategories(); // đồng bộ danh mục trước (cập nhật CAT_META)
     const ok = await loadAll(); // sau đó load phrases/dialogues/levels/badges
     if(ok){
+      _dataFromDB = true;
       rerenderActive();
       firstSync = false;
       console.info('[live] Đồng bộ Supabase OK');

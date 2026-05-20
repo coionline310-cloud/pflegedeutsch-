@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -55,6 +55,7 @@
       <div class="sr-dd" id="srDrop"></div>
     </div>
     <div class="tb-acts">
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Đổi giao diện">🌙</button>
       <div class="xp-pill" id="tb-xp">⭐ 0 XP</div>
       <button class="ib pri" onclick="openGoogleModal()">🔗 Xuất Google</button>
       <a href="admin.html" class="ib" style="text-decoration:none;border-color:rgba(159,110,245,.3);color:var(--purple);" title="Trang quản trị nội dung">⚙️ Admin</a>
@@ -161,6 +162,24 @@
   <div class="dict-note" id="dict-note"></div>
   <div class="dict-ex" id="dict-ex"></div>
   <div class="dict-srs" id="dict-srs"></div>
+</div>
+
+<!-- ══ MOBILE BOTTOM NAV ══════════════════════════════════ -->
+<nav class="bottom-nav">
+  <div class="bn-items">
+    <div class="bn-item active" data-page="dashboard" onclick="navTo('dashboard')"><span class="bn-ic">📊</span><span class="bn-lbl">Dashboard</span></div>
+    <div class="bn-item" id="bn-cats-btn" onclick="showCatsSheet()"><span class="bn-ic">📚</span><span class="bn-lbl">Học từ</span></div>
+    <div class="bn-item" data-page="dialogue" onclick="navTo('dialogue')"><span class="bn-ic">💬</span><span class="bn-lbl">Hội thoại</span></div>
+    <div class="bn-item" data-page="srs" onclick="navTo('srs')"><span class="bn-ic">🔁</span><span class="bn-lbl">Ôn tập</span></div>
+    <div class="bn-item" data-page="exercise" onclick="navTo('exercise')"><span class="bn-ic">✏️</span><span class="bn-lbl">Bài tập</span></div>
+  </div>
+</nav>
+<!-- ══ CATEGORY SHEET (mobile) ════════════════════════════ -->
+<div class="cats-overlay" id="catsOverlay" onclick="closeCatsSheet()"></div>
+<div class="cats-sheet" id="catsSheet">
+  <div class="cats-sheet-handle" onclick="closeCatsSheet()"></div>
+  <div class="cats-sheet-title">Chọn danh mục</div>
+  <div class="cats-sheet-body" id="catsSheetBody"></div>
 </div>
 
 <!-- Supabase realtime (auto-sync with admin.html) -->
