@@ -1499,8 +1499,9 @@ function confirm2(title,sub,cb){
 }
 function closeConfirm(){document.getElementById('confirmModal').classList.remove('on');_confirmCb=null;}
 document.getElementById('confirmOkBtn').addEventListener('click',async()=>{
+  const cb=_confirmCb;
   closeConfirm();
-  if(_confirmCb) await _confirmCb();
+  if(cb) await cb();
 });
 document.getElementById('confirmModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeConfirm();});
 
