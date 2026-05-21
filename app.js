@@ -2022,7 +2022,7 @@ if(!sessionStorage.getItem('_wXP')){
   // ── Đồng bộ danh mục từ DB → CAT_META + sidebar ──
   let _catsFirstLoad=true;
   async function syncCategories(){
-    const [{data,error},{data:tops}]=await Promise.all([
+    const [{data,error},{data:tops,error:topsErr}]=await Promise.all([
       sb.from('categories').select('*').order('sort_order').order('id'),
       sb.from('topics').select('*').order('sort_order').order('id'),
     ]);
@@ -2031,7 +2031,8 @@ if(!sessionStorage.getItem('_wXP')){
       console.warn('[live] Fix: chạy trong Supabase SQL Editor:\nCREATE POLICY "categories_read_anon" ON public.categories FOR SELECT TO anon USING (true);');
       return false;
     }
-    if(tops){_topics=tops;renderTopicTabs();}
+    if(topsErr) console.warn('[live] topics fetch error:', topsErr.message);
+    else if(tops&&tops.length){_topics=tops;renderTopicTabs();}
     if(!data||!data.length) return false;
     Object.keys(CAT_META).forEach(k=>delete CAT_META[k]);
     const newPhrase=[],newVocab=[];
@@ -2182,6 +2183,12 @@ if(!sessionStorage.getItem('_wXP')){
     const ok = await loadAll(); // sau đó load phrases/dialogues/levels/badges
     if(ok){
       _dataFromDB = true;
+      // Retry topics nếu chưa load được (schema cache delay)
+      if(!_topics.length){
+        const {data:tops2,error:topsErr2}=await sb.from('topics').select('*').order('sort_order').order('id');
+        if(topsErr2) console.warn('[live] topics retry error:', topsErr2.message);
+        else if(tops2&&tops2.length){_topics=tops2;renderTopicTabs();}
+      }
       rerenderActive();
       firstSync = false;
       console.info('[live] Đồng bộ Supabase OK');
