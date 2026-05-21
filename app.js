@@ -1272,7 +1272,6 @@ async function renderReadingLessons(){
   const el=document.getElementById('reading-main');
   if(!el)return;
   stopHighlight();
-  _rlStopAudio();
   if(READING_LESSONS.length){_renderRLList();return;}
   const SB_URL=window.SUPABASE_URL, SB_KEY=window.SUPABASE_ANON_KEY;
   if(!SB_URL||!SB_KEY||SB_URL.includes('YOUR-PROJECT')){
@@ -1306,86 +1305,11 @@ async function renderReadingLessons(){
   }
 }
 
-// Extract direct Google Drive download URL (playable in <audio>)
-// &confirm=t bypasses the virus-scan/download-warning redirect
-function getDriveDirectUrl(url){
-  if(!url) return null;
-  const m=url.match(/\/d\/([a-zA-Z0-9_-]{10,})/)||url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
-  if(!m) return null;
-  return `https://drive.google.com/uc?id=${m[1]}&export=download&confirm=t`;
-}
-
 // Build word-span HTML from plain text
 function _rlWrapWords(text){
   return (text||'').split(/(\s+)/).map(tok=>
-    /^\s+$/.test(tok) ? tok : `<span class="hl-w">${tok.replace(/</g,'&lt;')}</span>`
+    /^\s+$/.test(tok)?tok:`<span class="hl-w">${tok.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`
   ).join('');
-}
-
-// Audio-based word sync state
-let _rlAudio=null, _rlTimings=null, _rlLastIdx=-1;
-
-function _rlStopAudio(){
-  if(_rlAudio){ _rlAudio.pause(); _rlAudio=null; }
-  _rlTimings=null; _rlLastIdx=-1;
-}
-
-function _rlSetupSync(){
-  const audio=_rlAudio;
-  const textEl=document.getElementById('rl-de-text');
-  const playBtn=document.getElementById('rl-play-btn');
-  if(!audio||!textEl) return;
-
-  const wordEls=Array.from(textEl.querySelectorAll('.hl-w'));
-  if(!wordEls.length) return;
-
-  function buildTimings(){
-    if(!audio.duration||isNaN(audio.duration)) return;
-    const lens=wordEls.map(w=>Math.max(w.textContent.trim().length,1));
-    const total=lens.reduce((s,n)=>s+n,0);
-    let t=0;
-    _rlTimings=lens.map(n=>{ const s=t; t+=n/total*audio.duration; return s; });
-  }
-
-  audio.addEventListener('loadedmetadata',buildTimings);
-  if(audio.readyState>=1) buildTimings();
-
-  audio.addEventListener('timeupdate',()=>{
-    if(!_rlTimings) buildTimings();
-    if(!_rlTimings) return;
-    const cur=audio.currentTime;
-    let idx=-1;
-    for(let i=_rlTimings.length-1;i>=0;i--){ if(cur>=_rlTimings[i]){idx=i;break;} }
-    if(idx===_rlLastIdx) return;
-    _rlLastIdx=idx;
-    wordEls.forEach((w,i)=>{
-      w.classList.toggle('hl-active',i===idx);
-      w.classList.toggle('hl-done',i<idx);
-    });
-  });
-
-  audio.addEventListener('play',()=>{
-    if(playBtn){playBtn.innerHTML='⏸ Dừng'; playBtn.classList.add('hl-playing');}
-  });
-  audio.addEventListener('pause',()=>{
-    if(playBtn){playBtn.innerHTML='▶ Phát &amp; tô đậm'; playBtn.classList.remove('hl-playing');}
-  });
-  audio.addEventListener('ended',()=>{
-    if(playBtn){playBtn.innerHTML='▶ Phát lại'; playBtn.classList.remove('hl-playing');}
-    wordEls.forEach(w=>{w.classList.remove('hl-active');w.classList.add('hl-done');});
-  });
-  audio.addEventListener('error',()=>{
-    console.warn('[rl] audio error — falling back to iframe');
-    // Fallback: replace broken audio element with iframe embed
-    const l=_rlCur!==null?READING_LESSONS[_rlCur]:null;
-    const wrap=audio.parentElement;
-    if(wrap&&l?.audio_url){
-      const embedUrl=getDriveEmbedUrl(l.audio_url);
-      if(embedUrl) wrap.innerHTML=`<div class="rl-audio-lbl">🎙 Audio bản gốc (Drive player)</div><iframe src="${embedUrl}" class="rl-audio-frame" allow="autoplay" allowfullscreen></iframe>`;
-    }
-    _rlAudio=null;
-    if(playBtn){playBtn.innerHTML='▶ Phát TTS'; playBtn.disabled=false;}
-  });
 }
 
 function openReadingLesson(i){
@@ -1393,9 +1317,8 @@ function openReadingLesson(i){
   const l=READING_LESSONS[i];
   if(!l) return;
   stopHighlight();
-  _rlStopAudio();
   const el=document.getElementById('reading-main');
-  const directUrl=getDriveDirectUrl(l.audio_url);
+  const embedUrl=getDriveEmbedUrl(l.audio_url);
   const diff=l.difficulty==='hard'?'Nâng cao':l.difficulty==='medium'?'Trung bình':'Cơ bản';
   const navRow=READING_LESSONS.length>1?`
     <div class="rl-nav-row">
@@ -1412,19 +1335,16 @@ function openReadingLesson(i){
           <span class="rl-diff diff-${l.difficulty||'easy'}">${diff}</span>
         </div>
       </div>
-      ${directUrl?`<div class="rl-audio-wrap">
-        <div class="rl-audio-lbl">🎙 Audio bản gốc</div>
-        <audio id="rl-audio-el" controls preload="metadata"
-          style="width:100%;height:44px;border-radius:8px;margin-top:4px;accent-color:var(--teal)">
-          <source src="${directUrl}">
-        </audio>
+      ${embedUrl?`<div class="rl-audio-wrap">
+        <div class="rl-audio-lbl">🎙 Nghe audio gốc (Google Drive)</div>
+        <iframe src="${embedUrl}" class="rl-audio-frame" allow="autoplay" allowfullscreen></iframe>
       </div>`:''}
       <div class="rl-text-box">
         <div class="rl-de" id="rl-de-text">${_rlWrapWords(l.de_text)}</div>
         ${l.vi_text?`<div class="rl-vi">${l.vi_text}</div>`:''}
       </div>
       <div class="rl-controls">
-        <button class="rl-play-btn" id="rl-play-btn" onclick="toggleRLPlay()">▶ Phát &amp; tô đậm</button>
+        <button class="rl-play-btn" id="rl-play-btn" onclick="toggleRLPlay()">▶ Tô đậm từng chữ</button>
         <div class="rl-rates">
           <span class="rl-rate-lbl">Tốc độ:</span>
           ${[0.6,0.8,1.0].map(r=>`<button class="rl-rate-btn${_rlRate===r?' active':''}" onclick="setRLRate(${r},this)">×${r}</button>`).join('')}
@@ -1432,11 +1352,6 @@ function openReadingLesson(i){
       </div>
       ${navRow}
     </div>`;
-
-  if(directUrl){
-    _rlAudio=document.getElementById('rl-audio-el');
-    if(_rlAudio){ _rlAudio.playbackRate=_rlRate; _rlSetupSync(); }
-  }
 }
 
 function toggleRLPlay(){
@@ -1445,18 +1360,6 @@ function toggleRLPlay(){
   if(!de||_rlCur===null) return;
   const l=READING_LESSONS[_rlCur];
   if(!l) return;
-  // Audio element available → toggle play/pause
-  if(_rlAudio){
-    if(_rlAudio.paused){
-      _rlAudio.play().catch(e=>{
-        // "interrupted by pause" is a harmless browser race-condition — ignore it
-        if(e.name==='AbortError'||e.message.includes('interrupted')||e.message.includes('pause')) return;
-        if(btn) btn.innerHTML='⚠ '+e.message;
-      });
-    } else { _rlAudio.pause(); }
-    return;
-  }
-  // No audio URL → TTS fallback with word highlighting
   if(_hl&&_hl.el===de){ stopHighlight(); }
   else { speakHighlight(l.de_text,de,btn,_rlRate); }
 }
@@ -1465,7 +1368,6 @@ function setRLRate(rate,btn){
   _rlRate=rate;
   document.querySelectorAll('.rl-rate-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  if(_rlAudio) _rlAudio.playbackRate=rate;
 }
 
 // ════════════════════════════════════════════════════════
