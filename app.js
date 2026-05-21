@@ -1307,10 +1307,12 @@ async function renderReadingLessons(){
 }
 
 // Extract direct Google Drive download URL (playable in <audio>)
+// &confirm=t bypasses the virus-scan/download-warning redirect
 function getDriveDirectUrl(url){
   if(!url) return null;
   const m=url.match(/\/d\/([a-zA-Z0-9_-]{10,})/)||url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
-  return m ? `https://drive.google.com/uc?id=${m[1]}&export=download` : null;
+  if(!m) return null;
+  return `https://drive.google.com/uc?id=${m[1]}&export=download&confirm=t`;
 }
 
 // Build word-span HTML from plain text
@@ -1373,7 +1375,16 @@ function _rlSetupSync(){
     wordEls.forEach(w=>{w.classList.remove('hl-active');w.classList.add('hl-done');});
   });
   audio.addEventListener('error',()=>{
-    if(playBtn){playBtn.innerHTML='⚠ Không tải được audio'; playBtn.disabled=true;}
+    console.warn('[rl] audio error — falling back to iframe');
+    // Fallback: replace broken audio element with iframe embed
+    const l=_rlCur!==null?READING_LESSONS[_rlCur]:null;
+    const wrap=audio.parentElement;
+    if(wrap&&l?.audio_url){
+      const embedUrl=getDriveEmbedUrl(l.audio_url);
+      if(embedUrl) wrap.innerHTML=`<div class="rl-audio-lbl">🎙 Audio bản gốc (Drive player)</div><iframe src="${embedUrl}" class="rl-audio-frame" allow="autoplay" allowfullscreen></iframe>`;
+    }
+    _rlAudio=null;
+    if(playBtn){playBtn.innerHTML='▶ Phát TTS'; playBtn.disabled=false;}
   });
 }
 
@@ -1436,8 +1447,13 @@ function toggleRLPlay(){
   if(!l) return;
   // Audio element available → toggle play/pause
   if(_rlAudio){
-    if(_rlAudio.paused){ _rlAudio.play().catch(e=>{ if(btn){btn.innerHTML='⚠ '+e.message;} }); }
-    else { _rlAudio.pause(); }
+    if(_rlAudio.paused){
+      _rlAudio.play().catch(e=>{
+        // "interrupted by pause" is a harmless browser race-condition — ignore it
+        if(e.name==='AbortError'||e.message.includes('interrupted')||e.message.includes('pause')) return;
+        if(btn) btn.innerHTML='⚠ '+e.message;
+      });
+    } else { _rlAudio.pause(); }
     return;
   }
   // No audio URL → TTS fallback with word highlighting
