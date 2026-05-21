@@ -16,6 +16,8 @@ const CAT_META={
 const PHRASE_CATS=['patient','colleague','handover','emergency'];
 const VOCAB_CATS=['vocab','anatomy','medication','documentation','nursing_process','mental'];
 let _dynCats=[];
+let _topics=[];
+let _activeTopic=null;
 let _dataFromDB=false; // true after first Supabase loadAll() succeeds
 
 // Compact DATA — representative subset (full version has 300+ items)
@@ -693,15 +695,26 @@ function buildSidebarCats(catsList){
   const commEl=document.getElementById('nav-comm-cats');
   const vocabEl=document.getElementById('nav-vocab-cats');
   if(!commEl||!vocabEl) return;
-  const commCats=_dynCats.filter(c=>c.section==='communication');
-  const vocabCats=_dynCats.filter(c=>c.section!=='communication');
+  // Filter by active topic when one is selected
+  let visible=_dynCats;
+  if(_activeTopic!==null){
+    const tp=_topics.find(t=>t.key===_activeTopic);
+    if(tp) visible=_dynCats.filter(c=>c.topic_id===tp.id);
+  }
+  const commCats=visible.filter(c=>c.section==='communication');
+  const vocabCats=visible.filter(c=>c.section!=='communication');
   const makeNavHTML=(cats,colorOff)=>cats.map((c,i)=>{
     const color=c.color||CAT_COLORS[(colorOff+i)%CAT_COLORS.length];
     return `<div class="nav-it" data-page="${c.key}" style="--tc:${color}" onclick="navTo('${c.key}')"><span class="nav-ic">${c.icon}</span>${c.label}<span class="nav-badge" id="cnt-${c.key}"></span></div>`;
   }).join('');
   commEl.innerHTML=makeNavHTML(commCats,0);
   vocabEl.innerHTML=makeNavHTML(vocabCats,4);
-  // Ensure page divs exist for all categories (including new ones)
+  // Show/hide section headers based on visible items
+  const commSec=document.getElementById('nav-sec-comm');
+  const vocabSec=document.getElementById('nav-sec-vocab');
+  if(commSec) commSec.style.display=commCats.length?'':'none';
+  if(vocabSec) vocabSec.style.display=vocabCats.length?'':'none';
+  // Ensure page divs exist for ALL categories (not just filtered ones)
   const main=document.querySelector('.main');
   const refPage=document.getElementById('page-dialogue');
   _dynCats.forEach(c=>{
@@ -713,11 +726,11 @@ function buildSidebarCats(catsList){
       else if(main) main.appendChild(div);
     }
   });
-  // Populate mobile category sheet
+  // Populate mobile category sheet (filtered)
   const sheetBody=document.getElementById('catsSheetBody');
   if(sheetBody){
-    const commList=_dynCats.filter(c=>c.section==='communication');
-    const vocabList=_dynCats.filter(c=>c.section!=='communication');
+    const commList=visible.filter(c=>c.section==='communication');
+    const vocabList=visible.filter(c=>c.section!=='communication');
     let sh='';
     if(commList.length){
       sh+=`<div class="cats-sheet-sec">💬 Giao tiếp</div>`;
@@ -730,6 +743,24 @@ function buildSidebarCats(catsList){
     sheetBody.innerHTML=sh;
   }
   recomputeCounts();
+}
+
+function renderTopicTabs(){
+  const el=document.getElementById('topicTabs');
+  if(!el) return;
+  if(!_topics.length){el.style.display='none';return;}
+  el.style.display='';
+  let html=`<button class="topic-tab${_activeTopic===null?' active':''}" onclick="navToTopic(null)">🌐 Tất cả</button>`;
+  html+=_topics.map(t=>`<button class="topic-tab${_activeTopic===t.key?' active':''}" onclick="navToTopic('${t.key}')" style="--tc:${t.color||'var(--blue)'};">${t.icon} ${t.label}</button>`).join('');
+  el.innerHTML=html;
+}
+
+function navToTopic(key){
+  _activeTopic=key;
+  renderTopicTabs();
+  buildSidebarCats();
+  const active=document.querySelector('.page.active');
+  if(active&&active.id==='page-dialogue') renderDialogues();
 }
 
 document.querySelectorAll('.nav-it[data-page]').forEach(it=>{
@@ -1252,7 +1283,12 @@ function rateSRS(q){
 // ════════════════════════════════════════════════════════
 function renderDialogues(){
   const el=document.getElementById('dialogue-list');
-  el.innerHTML=DIALOGUES.map((d,i)=>{
+  let filtered=DIALOGUES;
+  if(_activeTopic!==null){
+    const tp=_topics.find(t=>t.key===_activeTopic);
+    if(tp) filtered=DIALOGUES.filter(d=>d.topic_id===tp.id);
+  }
+  el.innerHTML=filtered.map((d,i)=>{
     const embedUrl=getDriveEmbedUrl(d.audio_url);
     const audioHtml=embedUrl?`<div class="dial-audio"><div class="dial-audio-lbl">🎙 Audio bản gốc</div><iframe src="${embedUrl}" class="dial-audio-frame" allow="autoplay" allowfullscreen></iframe></div>`:'';
     const diffLabel=d.diff==='easy'?'Cơ bản':d.diff==='medium'?'Trung bình':'Nâng cao';
@@ -1986,12 +2022,16 @@ if(!sessionStorage.getItem('_wXP')){
   // ── Đồng bộ danh mục từ DB → CAT_META + sidebar ──
   let _catsFirstLoad=true;
   async function syncCategories(){
-    const {data,error}=await sb.from('categories').select('*').order('sort_order').order('id');
+    const [{data,error},{data:tops}]=await Promise.all([
+      sb.from('categories').select('*').order('sort_order').order('id'),
+      sb.from('topics').select('*').order('sort_order').order('id'),
+    ]);
     if(error){
       console.warn('[live] categories: không đọc được (anon RLS?):', error.message);
       console.warn('[live] Fix: chạy trong Supabase SQL Editor:\nCREATE POLICY "categories_read_anon" ON public.categories FOR SELECT TO anon USING (true);');
       return false;
     }
+    if(tops){_topics=tops;renderTopicTabs();}
     if(!data||!data.length) return false;
     Object.keys(CAT_META).forEach(k=>delete CAT_META[k]);
     const newPhrase=[],newVocab=[];
@@ -2068,6 +2108,7 @@ if(!sessionStorage.getItem('_wXP')){
         icon: row.icon || '💬',
         diff: row.difficulty || 'easy',
         audio_url: row.audio_url || null,
+        topic_id: row.topic_id || null,
         lines: (row.dialogue_lines||[])
           .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
           .map(L=>({ role: L.role, de: L.de, vi: L.vi }))
@@ -2159,4 +2200,11 @@ if(!sessionStorage.getItem('_wXP')){
   sb.channel('rt:categories')
     .on('postgres_changes', { event:'*', schema:'public', table:'categories' }, ()=>syncCategories())
     .subscribe(status=>{ if(status==='SUBSCRIBED') console.info('[live] Realtime ON: categories'); });
+  // topics cập nhật tab bar và sidebar ngay lập tức
+  sb.channel('rt:topics')
+    .on('postgres_changes', { event:'*', schema:'public', table:'topics' }, async()=>{
+      const {data}=await sb.from('topics').select('*').order('sort_order').order('id');
+      if(data){_topics=data;renderTopicTabs();buildSidebarCats();}
+    })
+    .subscribe(status=>{ if(status==='SUBSCRIBED') console.info('[live] Realtime ON: topics'); });
 })();
