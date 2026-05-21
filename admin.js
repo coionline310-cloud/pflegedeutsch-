@@ -1391,30 +1391,61 @@ async function saveRL(){
   if(!de_text){ toast('Vui lòng nhập nội dung tiếng Đức'); return; }
   const btn = document.getElementById('rlSaveBtn');
   btn.disabled = true; btn.textContent = 'Đang lưu...';
-  // Carry over existing audio_path / word_timestamps from DB record
   const existing = _rlEditId ? _rlData.find(x=>x.id===_rlEditId) : null;
   let audio_path = existing?.audio_path || null;
   let word_timestamps = existing?.word_timestamps || [];
-  // Upload new audio file to Supabase Storage if selected
+  // Upload audio nếu có file mới
   if (_rlSelectedFile) {
     btn.textContent = 'Đang upload audio...';
     const ext = (_rlSelectedFile.name.split('.').pop() || 'mp3').toLowerCase();
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
-    const { data: upData, error: upErr } = await sb.storage
-      .from('karaoke-audio')
-      .upload(fileName, _rlSelectedFile, { contentType: _rlSelectedFile.type, upsert: false });
-    if (upErr) {
-      toast('Lỗi upload audio: ' + upErr.message + (upErr.message.includes('bucket') ? ' — Chạy supabase-karaoke.sql trước!' : ''), true);
+    // Dùng XMLHttpRequest để có timeout + không treo UI
+    let uploadedPath;
+    try {
+      uploadedPath = await new Promise((resolve, reject) => {
+        const _url = SB_URL;
+        const _key = SB_KEY;
+        // Lấy access token từ session hiện tại
+        sb.auth.getSession().then(({ data: { session } }) => {
+          const token = session?.access_token || _key;
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `${_url}/storage/v1/object/karaoke-audio/${fileName}`);
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          xhr.setRequestHeader('x-upsert', 'false');
+          xhr.timeout = 90000; // 90 giây
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const pct = Math.round(e.loaded / e.total * 100);
+              btn.textContent = `Đang upload... ${pct}%`;
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(fileName);
+            } else {
+              let msg = '';
+              try { msg = JSON.parse(xhr.responseText)?.message || xhr.responseText; } catch(e) { msg = xhr.responseText; }
+              if (xhr.status === 404 || msg.includes('not found') || msg.includes('bucket')) {
+                reject(new Error('Bucket "karaoke-audio" chưa tồn tại — chạy supabase-karaoke.sql trong SQL Editor!'));
+              } else {
+                reject(new Error(`Upload lỗi ${xhr.status}: ${msg}`));
+              }
+            }
+          };
+          xhr.onerror = () => reject(new Error('Upload thất bại — kiểm tra kết nối mạng'));
+          xhr.ontimeout = () => reject(new Error('Upload timeout 90s — Supabase Storage có thể chưa cấu hình. Chạy supabase-karaoke.sql!'));
+          xhr.send(_rlSelectedFile);
+        }).catch(reject);
+      });
+      audio_path = uploadedPath;
+      btn.textContent = 'Đang lưu...';
+    } catch(e) {
+      toast('Lỗi upload: ' + e.message, true);
       btn.disabled = false; btn.textContent = 'Lưu';
       return;
     }
-    audio_path = upData.path;
-    btn.textContent = 'Đang lưu...';
   }
-  // Use freshly transcribed timestamps if available
-  if (_rlTimestamps.length > 0) {
-    word_timestamps = _rlTimestamps;
-  }
+  if (_rlTimestamps.length > 0) word_timestamps = _rlTimestamps;
   const payload = {
     title,
     icon: document.getElementById('rl-icon').value.trim() || '🎧',
