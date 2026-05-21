@@ -34,6 +34,8 @@ let editLevelId = null;
 let editBadgeId = null;
 let allCategories = [];
 let editCategoryId = null;
+let allTopics = [];
+let editTopicId = null;
 
 // ══════════════════════════════════════════════════════════
 // TOAST
@@ -133,8 +135,8 @@ async function initApp(){
   if(profile.role!=='super_admin'){
     document.querySelectorAll('.admin-only').forEach(el=>el.style.display='none');
   }
-  // Load categories (also calls setupCatFilter internally)
-  await loadCategories();
+  // Load categories and topics
+  await Promise.all([loadCategories(), loadTopics()]);
   // Config info
   document.getElementById('configInfo').textContent =
     'URL: ' + SB_URL + '\nKey: ' + SB_KEY.slice(0,30) + '...';
@@ -148,7 +150,7 @@ async function initApp(){
 // ══════════════════════════════════════════════════════════
 const PANEL_TITLES = {
   overview:'Dashboard', phrases:'Từ vựng & Cụm từ', categories:'Danh mục',
-  dialogues:'Hội thoại', levels:'Levels', badges:'Badges',
+  dialogues:'Hội thoại', topics:'Lĩnh vực', levels:'Levels', badges:'Badges',
   users:'Người dùng', settings:'Cài đặt'
 };
 function showPanel(id){
@@ -161,6 +163,7 @@ function showPanel(id){
   document.getElementById('admSidebar').classList.remove('open');
   // Lazy load
   if(id==='dialogues') loadDialogues();
+  else if(id==='topics') loadTopics();
   else if(id==='levels') loadLevels();
   else if(id==='badges') loadBadges();
   else if(id==='users')  loadUsers();
@@ -172,10 +175,11 @@ function showPanel(id){
 // OVERVIEW
 // ══════════════════════════════════════════════════════════
 async function loadOverview(){
-  const [p,d,dl,l,b,u] = await Promise.all([
+  const [p,d,dl,t,l,b,u] = await Promise.all([
     sb.from('phrases').select('*', {count:'exact',head:true}),
     sb.from('dialogues').select('*', {count:'exact',head:true}),
     sb.from('dialogue_lines').select('*', {count:'exact',head:true}),
+    sb.from('topics').select('*', {count:'exact',head:true}),
     sb.from('levels').select('*', {count:'exact',head:true}),
     sb.from('badges').select('*', {count:'exact',head:true}),
     sb.from('profiles').select('*', {count:'exact',head:true}),
@@ -183,6 +187,7 @@ async function loadOverview(){
   document.getElementById('st-phrases').textContent = p.count??'—';
   document.getElementById('st-dialogues').textContent = d.count??'—';
   document.getElementById('st-lines').textContent = dl.count??'—';
+  document.getElementById('st-topics').textContent = t.count??'—';
   document.getElementById('st-levels').textContent = l.count??'—';
   document.getElementById('st-badges').textContent = b.count??'—';
   document.getElementById('st-users').textContent = u.count??'—';
@@ -233,6 +238,15 @@ function setupCatFilter(){
   cats.forEach(([k,v])=>{
     const o=document.createElement('option');o.value=k;o.textContent=v.ic+' '+v.l;pms.appendChild(o);
   });
+}
+
+function setupTopicSelects(){
+  const opts = '<option value="">— Không thuộc lĩnh vực nào —</option>' +
+    allTopics.map(t=>`<option value="${t.id}">${t.icon} ${t.label}</option>`).join('');
+  const cm = document.getElementById('cm-topic');
+  const dm = document.getElementById('dm-topic');
+  if(cm) cm.innerHTML = opts;
+  if(dm) dm.innerHTML = opts;
 }
 
 function updateGroupFilter(){
@@ -451,6 +465,7 @@ function openCategoryModal(id=null){
     keyHint.textContent='Key không thể thay đổi (đang dùng làm khoá trong bảng phrases).';
     document.getElementById('cm-section').value=cat.section||'vocabulary';
     document.getElementById('cm-sort').value=cat.sort_order;
+    document.getElementById('cm-topic').value=cat.topic_id||'';
   } else {
     document.getElementById('categoryModalTitle').textContent='Thêm danh mục mới';
     document.getElementById('cm-icon').value='📁';
@@ -460,6 +475,7 @@ function openCategoryModal(id=null){
     keyInp.style.opacity='1';
     keyHint.innerHTML='Chỉ gồm chữ thường a-z, số và dấu <code style="color:var(--blue)">_</code>. Không thể thay đổi sau khi tạo.';
     document.getElementById('cm-section').value='vocabulary';
+    document.getElementById('cm-topic').value='';
     const nextSort=allCategories.length?Math.max(...allCategories.map(c=>c.sort_order))+1:1;
     document.getElementById('cm-sort').value=nextSort;
   }
@@ -484,6 +500,7 @@ async function saveCategory(){
   const key    =rawKey.replace(/[^a-z0-9_]/g,'_').replace(/__+/g,'_').replace(/^_|_$/g,'');
   const section=document.getElementById('cm-section').value;
   const sort   =parseInt(document.getElementById('cm-sort').value)||0;
+  const topicVal=document.getElementById('cm-topic').value;
   const errEl  =document.getElementById('categoryModalErr');
   errEl.style.display='none';
   if(!label){errEl.textContent='Vui lòng nhập tên danh mục.';errEl.style.display='block';return;}
@@ -493,7 +510,7 @@ async function saveCategory(){
   }
   const btn=document.getElementById('cmSaveBtn');
   btn.disabled=true;btn.textContent='Đang lưu...';
-  const payload={icon,label,section,sort_order:sort};
+  const payload={icon,label,section,sort_order:sort,topic_id:topicVal?parseInt(topicVal):null};
   if(!editCategoryId)payload.key=key;
   let error;
   if(editCategoryId){
@@ -519,6 +536,121 @@ async function deleteCategory(id){
     toast('🗑️ Đã xóa danh mục!');
     await loadCategories();
     filterPhrases();
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// TOPICS
+// ══════════════════════════════════════════════════════════
+async function loadTopics(){
+  const {data,error}=await sb.from('topics').select('*').order('sort_order').order('id');
+  if(error){ console.warn('[topics] error:',error.message); return; }
+  allTopics=data||[];
+  setupTopicSelects();
+  renderTopicsTable();
+}
+
+function renderTopicsTable(){
+  const body=document.getElementById('topicsBody');
+  if(!body) return;
+  if(!allTopics.length){
+    body.innerHTML='<tr><td colspan="6" class="empty-row">Chưa có lĩnh vực nào. Hãy thêm mới!</td></tr>';
+    return;
+  }
+  body.innerHTML=allTopics.map(t=>`
+    <tr>
+      <td style="font-size:1.25rem;text-align:center;">${esc(t.icon)}</td>
+      <td style="font-weight:600;">${esc(t.label)}</td>
+      <td><span class="key-chip">${esc(t.key)}</span></td>
+      <td><span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:12px;height:12px;border-radius:50%;background:${esc(t.color||'var(--blue)')};display:inline-block;flex-shrink:0;"></span>${esc(t.color||'—')}</span></td>
+      <td style="color:var(--t3);">${t.sort_order}</td>
+      <td class="td-actions">
+        <button class="btn btn-blue btn-sm" onclick="openTopicModal(${t.id})">✏️ Sửa</button>
+        <button class="btn btn-red btn-sm" onclick="deleteTopic(${t.id})">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openTopicModal(id=null){
+  editTopicId=id;
+  const errEl=document.getElementById('topicModalErr');
+  errEl.style.display='none';
+  if(id){
+    const t=allTopics.find(x=>x.id===id);
+    if(!t)return;
+    document.getElementById('topicModalTitle').textContent='Sửa lĩnh vực';
+    document.getElementById('tm-icon').value=t.icon;
+    document.getElementById('tm-label').value=t.label;
+    document.getElementById('tm-key').value=t.key;
+    document.getElementById('tm-key').disabled=true;
+    document.getElementById('tm-key').style.opacity='.5';
+    document.getElementById('tm-color').value=t.color||'';
+    document.getElementById('tm-sort').value=t.sort_order;
+  } else {
+    document.getElementById('topicModalTitle').textContent='Thêm lĩnh vực mới';
+    document.getElementById('tm-icon').value='📚';
+    document.getElementById('tm-label').value='';
+    document.getElementById('tm-key').value='';
+    document.getElementById('tm-key').disabled=false;
+    document.getElementById('tm-key').style.opacity='1';
+    document.getElementById('tm-color').value='';
+    const nextSort=allTopics.length?Math.max(...allTopics.map(t=>t.sort_order))+1:1;
+    document.getElementById('tm-sort').value=nextSort;
+  }
+  document.getElementById('topicModal').classList.add('on');
+  setTimeout(()=>document.getElementById('tm-label').focus(),100);
+}
+function closeTopicModal(){
+  document.getElementById('topicModal').classList.remove('on');
+  const ki=document.getElementById('tm-key');
+  ki.disabled=false; ki.style.opacity='1';
+}
+document.getElementById('topicModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTopicModal();});
+document.getElementById('tm-label').addEventListener('input',function(){
+  if(editTopicId)return;
+  document.getElementById('tm-key').value=labelToKey(this.value);
+});
+
+async function saveTopic(){
+  const icon =document.getElementById('tm-icon').value.trim()||'📚';
+  const label=document.getElementById('tm-label').value.trim();
+  const rawKey=document.getElementById('tm-key').value.trim().toLowerCase();
+  const key  =rawKey.replace(/[^a-z0-9_]/g,'_').replace(/__+/g,'_').replace(/^_|_$/g,'');
+  const color=document.getElementById('tm-color').value.trim()||'var(--blue)';
+  const sort =parseInt(document.getElementById('tm-sort').value)||0;
+  const errEl=document.getElementById('topicModalErr');
+  errEl.style.display='none';
+  if(!label){errEl.textContent='Vui lòng nhập tên lĩnh vực.';errEl.style.display='block';return;}
+  if(!editTopicId){
+    if(!key){errEl.textContent='Vui lòng nhập key hợp lệ.';errEl.style.display='block';return;}
+    if(allTopics.find(t=>t.key===key)){errEl.textContent=`Key "${key}" đã tồn tại.`;errEl.style.display='block';return;}
+  }
+  const btn=document.getElementById('tmSaveBtn');
+  btn.disabled=true; btn.textContent='Đang lưu...';
+  const payload={icon,label,color,sort_order:sort};
+  if(!editTopicId) payload.key=key;
+  let error;
+  if(editTopicId){
+    ({error}=await sb.from('topics').update(payload).eq('id',editTopicId));
+  } else {
+    ({error}=await sb.from('topics').insert(payload));
+  }
+  btn.disabled=false; btn.textContent='Lưu';
+  if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';return;}
+  closeTopicModal();
+  toast(editTopicId?'✓ Đã cập nhật lĩnh vực!':'✓ Đã thêm lĩnh vực mới!');
+  await loadTopics();
+}
+
+async function deleteTopic(id){
+  const t=allTopics.find(x=>x.id===id);
+  if(!t)return;
+  confirm2(`Xóa lĩnh vực "${t.label}"?`,'Danh mục và hội thoại thuộc lĩnh vực này sẽ không còn gắn lĩnh vực nào (topic_id → null).',async()=>{
+    const {data,error}=await sb.from('topics').delete().eq('id',id).select();
+    if(error){toast('Lỗi xóa: '+error.message,true);return;}
+    if(!data||!data.length){toast('Lỗi: không xóa được — kiểm tra quyền',true);return;}
+    toast('🗑️ Đã xóa lĩnh vực!');
+    await loadTopics();
   });
 }
 
@@ -595,6 +727,7 @@ function openDialogueModal(id=null){
     document.getElementById('dm-diff').value  = d.difficulty||'easy';
     document.getElementById('dm-sort').value  = d.sort_order||0;
     document.getElementById('dm-audio').value = d.audio_url||'';
+    document.getElementById('dm-topic').value = d.topic_id||'';
     const lines = (d.dialogue_lines||[]).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
     lines.forEach(l=>addLineRow(l));
   } else {
@@ -603,6 +736,7 @@ function openDialogueModal(id=null){
     document.getElementById('dm-diff').value='easy';
     document.getElementById('dm-sort').value='0';
     document.getElementById('dm-audio').value='';
+    document.getElementById('dm-topic').value='';
     document.getElementById('linesEditor').innerHTML='';
     addLineRow(); addLineRow();
   }
@@ -652,6 +786,8 @@ async function saveDialogue(){
   const diff  = document.getElementById('dm-diff').value;
   const sort  = parseInt(document.getElementById('dm-sort').value)||0;
   const audioUrl = document.getElementById('dm-audio').value.trim()||null;
+  const topicVal = document.getElementById('dm-topic').value;
+  const topicId  = topicVal ? parseInt(topicVal) : null;
   const errEl = document.getElementById('dialogueModalErr');
   errEl.style.display='none';
   if(!title){errEl.textContent='Vui lòng nhập tiêu đề.';errEl.style.display='block';return;}
@@ -668,12 +804,12 @@ async function saveDialogue(){
   btn.disabled=true;btn.textContent='Đang lưu...';
   let dialId=editDialogueId;
   if(dialId){
-    const {error}=await sb.from('dialogues').update({title,icon,difficulty:diff,sort_order:sort,audio_url:audioUrl}).eq('id',dialId);
+    const {error}=await sb.from('dialogues').update({title,icon,difficulty:diff,sort_order:sort,audio_url:audioUrl,topic_id:topicId}).eq('id',dialId);
     if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Lưu';return;}
     // Delete old lines, re-insert
     await sb.from('dialogue_lines').delete().eq('dialogue_id',dialId);
   } else {
-    const {data,error}=await sb.from('dialogues').insert({title,icon,difficulty:diff,sort_order:sort,audio_url:audioUrl}).select().single();
+    const {data,error}=await sb.from('dialogues').insert({title,icon,difficulty:diff,sort_order:sort,audio_url:audioUrl,topic_id:topicId}).select().single();
     if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Lưu';return;}
     dialId=data.id;
   }

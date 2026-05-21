@@ -52,6 +52,7 @@
     <div class="nav-it" data-panel="phrases" style="--tc:var(--teal)" onclick="showPanel('phrases')"><span class="nav-ic">💬</span>Từ vựng & Cụm từ</div>
     <div class="nav-it" data-panel="categories" style="--tc:var(--orange)" onclick="showPanel('categories')"><span class="nav-ic">🗂️</span>Danh mục</div>
     <div class="nav-it" data-panel="dialogues" style="--tc:var(--purple)" onclick="showPanel('dialogues')"><span class="nav-ic">🗣️</span>Hội thoại</div>
+    <div class="nav-it" data-panel="topics" style="--tc:var(--teal)" onclick="showPanel('topics')"><span class="nav-ic">🏷️</span>Lĩnh vực</div>
     <div class="nav-sec">Hệ thống</div>
     <div class="nav-it" data-panel="levels" style="--tc:var(--yellow)" onclick="showPanel('levels')"><span class="nav-ic">⭐</span>Levels</div>
     <div class="nav-it" data-panel="badges" style="--tc:var(--purple)" onclick="showPanel('badges')"><span class="nav-ic">🏅</span>Badges</div>
@@ -78,6 +79,7 @@
       <div class="stat-card"><div class="stat-num" id="st-phrases">—</div><div class="stat-lbl">Từ vựng/Cụm từ</div></div>
       <div class="stat-card"><div class="stat-num" id="st-dialogues">—</div><div class="stat-lbl">Hội thoại</div></div>
       <div class="stat-card"><div class="stat-num" id="st-lines">—</div><div class="stat-lbl">Dòng hội thoại</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-topics">—</div><div class="stat-lbl">Lĩnh vực</div></div>
       <div class="stat-card"><div class="stat-num" id="st-levels">—</div><div class="stat-lbl">Levels</div></div>
       <div class="stat-card"><div class="stat-num" id="st-badges">—</div><div class="stat-lbl">Badges</div></div>
       <div class="stat-card"><div class="stat-num" id="st-users">—</div><div class="stat-lbl">Người dùng</div></div>
@@ -159,6 +161,30 @@
     <div id="dialoguesList">
       <div class="loading"><span class="spin"></span>Đang tải...</div>
     </div>
+  </div>
+
+  <!-- ══ TOPICS ══ -->
+  <div class="adm-panel" id="panel-topics">
+    <div class="ph">
+      <div class="ph-left"><div class="pt">🏷️ Lĩnh vực</div><div class="ps">Quản lý các lĩnh vực học tập — người học lọc nội dung theo tab trên trang học</div></div>
+      <button class="btn btn-green" onclick="openTopicModal()">＋ Thêm lĩnh vực</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="topicsTable">
+        <thead><tr>
+          <th style="width:8%;text-align:center;">Icon</th>
+          <th style="width:28%">Tên lĩnh vực</th>
+          <th style="width:16%">Key</th>
+          <th style="width:16%">Màu sắc</th>
+          <th style="width:10%">Thứ tự</th>
+          <th style="width:22%">Thao tác</th>
+        </tr></thead>
+        <tbody id="topicsBody">
+          <tr><td colspan="6" class="loading"><span class="spin"></span>Đang tải...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="info-box" style="margin-top:.8rem;">💡 Sau khi thêm lĩnh vực, hãy gán lĩnh vực cho từng <strong>Danh mục</strong> và <strong>Hội thoại</strong> để chúng xuất hiện khi lọc theo tab.</div>
   </div>
 
   <!-- ══ LEVELS ══ -->
@@ -350,6 +376,12 @@ NOTIFY pgrst, 'reload schema';</pre>
         <option value="other">📂 Khác</option>
       </select>
     </div>
+    <div class="frow">
+      <label class="flbl">Lĩnh vực</label>
+      <select class="finp" id="cm-topic">
+        <option value="">— Không thuộc lĩnh vực nào —</option>
+      </select>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeCategoryModal()">Huỷ</button>
       <button class="btn btn-green" id="cmSaveBtn" onclick="saveCategory()">Lưu</button>
@@ -390,6 +422,12 @@ NOTIFY pgrst, 'reload schema';</pre>
       <label class="flbl">🎙 Google Drive Audio URL <span style="color:var(--t3);font-weight:400;">(tuỳ chọn)</span></label>
       <input class="finp" id="dm-audio" type="url" placeholder="https://drive.google.com/file/d/FILE_ID/view">
       <div style="font-size:.67rem;color:var(--t3);margin-top:3px;">Dán link Drive → Share → Anyone with link → Copy link</div>
+    </div>
+    <div class="frow">
+      <label class="flbl">Lĩnh vực</label>
+      <select class="finp" id="dm-topic">
+        <option value="">— Không thuộc lĩnh vực nào —</option>
+      </select>
     </div>
     <div class="frow">
       <label class="flbl">Dòng hội thoại</label>
@@ -478,6 +516,41 @@ NOTIFY pgrst, 'reload schema';</pre>
     <div class="modal-actions">
       <button class="btn" onclick="closeBadgeModal()">Huỷ</button>
       <button class="btn btn-green" id="bmSaveBtn" onclick="saveBadge()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ TOPIC MODAL ════════ -->
+<div class="overlay" id="topicModal">
+  <div class="modal">
+    <div class="modal-title" id="topicModalTitle">Thêm lĩnh vực</div>
+    <div class="modal-err" id="topicModalErr"></div>
+    <div class="frow-grid">
+      <div class="frow">
+        <label class="flbl">Icon (emoji) *</label>
+        <input class="finp" id="tm-icon" type="text" placeholder="🏥" maxlength="4">
+      </div>
+      <div class="frow">
+        <label class="flbl">Thứ tự hiển thị</label>
+        <input class="finp" id="tm-sort" type="number" value="0" min="0">
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flbl">Tên lĩnh vực *</label>
+      <input class="finp" id="tm-label" type="text" placeholder="VD: Y tế, Đời sống...">
+    </div>
+    <div class="frow">
+      <label class="flbl">Key (slug) *</label>
+      <input class="finp" id="tm-key" type="text" placeholder="VD: medical, daily_life...">
+      <div style="font-size:.69rem;color:var(--t3);margin-top:3px;">Chỉ gồm chữ thường a-z, số và dấu <code style="color:var(--blue)">_</code>. Không thể thay đổi sau khi tạo.</div>
+    </div>
+    <div class="frow">
+      <label class="flbl">Màu sắc <span style="color:var(--t3);font-weight:400;">(tuỳ chọn)</span></label>
+      <input class="finp" id="tm-color" type="text" placeholder="#25cba8 hoặc var(--blue)">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeTopicModal()">Huỷ</button>
+      <button class="btn btn-green" id="tmSaveBtn" onclick="saveTopic()">Lưu</button>
     </div>
   </div>
 </div>
