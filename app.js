@@ -1854,9 +1854,21 @@ if(!sessionStorage.getItem('_wXP')){
     err.textContent='✓ Đăng ký thành công! Kiểm tra email để xác nhận tài khoản (hoặc đăng nhập ngay nếu không cần xác nhận).';
   };
   window.doSignOut = async function(){
+    // Close dropdown immediately
+    const d=document.getElementById('auth-drop');
+    if(d) d.style.display='none';
     clearTimeout(_cloudSaveTimer);
-    await pushProgress(); // save before logout
-    await sb.auth.signOut();
+    // Save progress — but don't let failure block signOut
+    try { await pushProgress(); } catch(e){ console.warn('[auth] push failed:', e); }
+    // Sign out
+    const {error} = await sb.auth.signOut();
+    if(error) console.warn('[auth] signOut error:', error.message);
+    // Update UI immediately (don't wait for onAuthStateChange)
+    renderAuthUI(null);
+    loadSRS();
+    Object.assign(GS,{xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:''});
+    updateXPUI();
+    renderDashboard();
     toast('Đã đăng xuất');
   };
   window.toggleUserMenu = function(e){
