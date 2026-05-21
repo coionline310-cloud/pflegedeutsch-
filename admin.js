@@ -1210,7 +1210,7 @@ let _rlData = [];
 let _rlEditId = null;
 let _rlSelectedFile = null;
 let _rlTimestamps = [];
-let _whisperPipeline = null;
+let _whisperWorker = null;
 
 function onRLFileSelect(input) {
   const file = input.files[0];
@@ -1232,57 +1232,68 @@ async function transcribeRL() {
   const btn = document.getElementById('rl-transcribe-btn');
   const status = document.getElementById('rl-transcribe-status');
   btn.disabled = true;
-  btn.textContent = '⏳ Đang tải model...';
   status.style.display = 'block';
   status.style.color = 'var(--t2)';
-  status.textContent = 'Đang tải Whisper.js từ CDN (lần đầu ~244 MB — sẽ cache lại)...';
   try {
-    const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
-    env.allowLocalModels = false;
-    if (!_whisperPipeline) {
-      status.textContent = 'Đang tải Whisper small model (lần đầu có thể mất 1-2 phút)...';
-      _whisperPipeline = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
-        progress_callback: (p) => {
-          if (p.status === 'progress') {
-            const pct = Math.round(p.progress || 0);
-            status.textContent = `Đang tải: ${p.file || ''} — ${pct}%`;
-          }
-        }
-      });
-    }
-    status.textContent = '⏳ Đang phiên âm... (có thể mất vài phút tuỳ độ dài audio)';
-    btn.textContent = '⏳ Đang phiên âm...';
-    const blobUrl = URL.createObjectURL(_rlSelectedFile);
-    let result;
+    // Bước 1: Giải mã audio trên main thread (AudioContext không dùng được trong Worker)
+    btn.textContent = '⏳ Đang giải mã audio...';
+    status.textContent = 'Đang giải mã file audio sang PCM 16 kHz...';
+    const arrayBuffer = await _rlSelectedFile.arrayBuffer();
+    const audioCtx = new AudioContext({ sampleRate: 16000 });
+    let float32Audio;
     try {
-      result = await _whisperPipeline(blobUrl, {
-        language: 'german',
-        return_timestamps: 'word',
-        chunk_length_s: 30,
-      });
+      const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+      float32Audio = decoded.getChannelData(0); // mono, 16 kHz
     } finally {
-      URL.revokeObjectURL(blobUrl);
+      audioCtx.close();
     }
-    const fullText = (result.text || '').trim();
-    document.getElementById('rl-de').value = fullText;
-    if (Array.isArray(result.chunks)) {
-      _rlTimestamps = result.chunks
-        .filter(c => c.timestamp && c.timestamp[0] != null)
-        .map(c => ({
-          word: (c.text || '').trim(),
-          start: c.timestamp[0],
-          end: c.timestamp[1] != null ? c.timestamp[1] : c.timestamp[0] + 0.4
-        }))
-        .filter(w => w.word.length > 0);
+    // Bước 2: Tạo/tái dùng Web Worker (model giữ nguyên trong Worker — không tải lại)
+    if (!_whisperWorker) {
+      _whisperWorker = new Worker(
+        new URL('./whisper-worker.js', location.href),
+        { type: 'module' }
+      );
     }
-    const wCount = _rlTimestamps.length;
+    btn.textContent = '⏳ Đang phiên âm (nền)...';
+    // Bước 3: Gửi Float32Array sang Worker và đợi kết quả (zero-copy transfer)
+    const result = await new Promise((resolve, reject) => {
+      const handler = ({ data }) => {
+        if (data.type === 'progress') {
+          status.textContent = `Đang tải model: ${data.file} — ${data.pct}%`;
+        } else if (data.type === 'status') {
+          status.textContent = data.text;
+        } else if (data.type === 'result') {
+          _whisperWorker.removeEventListener('message', handler);
+          resolve(data);
+        } else if (data.type === 'error') {
+          _whisperWorker.removeEventListener('message', handler);
+          reject(new Error(data.message));
+        }
+      };
+      _whisperWorker.addEventListener('message', handler);
+      _whisperWorker.onerror = (e) => {
+        _whisperWorker.removeEventListener('message', handler);
+        reject(new Error(e.message || 'Worker error'));
+      };
+      _whisperWorker.postMessage({ type: 'run', audio: float32Audio }, [float32Audio.buffer]);
+    });
+    document.getElementById('rl-de').value = (result.text || '').trim();
+    _rlTimestamps = (result.chunks || [])
+      .filter(c => c.timestamp && c.timestamp[0] != null)
+      .map(c => ({
+        word: (c.text || '').trim(),
+        start: c.timestamp[0],
+        end: c.timestamp[1] != null ? c.timestamp[1] : c.timestamp[0] + 0.4
+      }))
+      .filter(w => w.word.length > 0);
     status.style.color = 'var(--green)';
-    status.textContent = `✓ Phiên âm xong! ${wCount} từ có timestamp · Nhấn Lưu để hoàn tất.`;
+    status.textContent = `✓ Phiên âm xong! ${_rlTimestamps.length} từ có timestamp · Nhấn Lưu để hoàn tất.`;
     btn.textContent = '🔄 Phiên âm lại';
     btn.disabled = false;
   } catch (e) {
+    if (_whisperWorker) { _whisperWorker.terminate(); _whisperWorker = null; }
     status.style.color = 'var(--red)';
-    status.textContent = 'Lỗi phiên âm: ' + (e.message || String(e));
+    status.textContent = 'Lỗi: ' + (e.message || String(e));
     btn.textContent = '🎙 Phiên âm tự động với Whisper.js';
     btn.disabled = false;
     console.error('[whisper]', e);
