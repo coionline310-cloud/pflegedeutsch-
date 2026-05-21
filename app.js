@@ -1280,14 +1280,24 @@ async function renderReadingLessons(){
     return;
   }
   el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic" style="font-size:1.4rem">⏳</div><div>Đang tải...</div></div>`;
-  const {data,error}=await sb.from('reading_lessons').select('*').order('sort_order').order('id');
-  if(error){
-    console.warn('[reading] fetch error:',error.message);
-    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">⚠️</div><div style="color:var(--yellow)">Lỗi tải dữ liệu.<br><small style="color:var(--t3)">${error.message}</small></div></div>`;
+  let rl;
+  try {
+    rl = await Promise.race([
+      sb.from('reading_lessons').select('*').order('sort_order').order('id'),
+      new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),8000))
+    ]);
+  } catch(e){
+    console.warn('[reading] fetch timeout/error:',e.message);
+    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">⚠️</div><div style="color:var(--yellow)">Không tải được dữ liệu (timeout).<br><small style="color:var(--t3)">Kiểm tra kết nối và RLS policy anon SELECT trên bảng reading_lessons.</small></div></div>`;
     return;
   }
-  if((data||[]).length){
-    READING_LESSONS=data;
+  if(rl.error){
+    console.warn('[reading] fetch error:',rl.error.message);
+    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">⚠️</div><div style="color:var(--yellow)">Lỗi: ${rl.error.message}</div></div>`;
+    return;
+  }
+  if((rl.data||[]).length){
+    READING_LESSONS=rl.data;
     _renderRLList();
   } else {
     el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">🎧</div><div>Chưa có bài luyện nghe nào.<br>Thêm bài mới trong <a href="admin.html" style="color:var(--teal)">Admin → Karaoke Nghe</a>.</div></div>`;
@@ -2128,21 +2138,28 @@ if(!sessionStorage.getItem('_wXP')){
   };
 
   async function loadAll(){
-    const [p, d, l, b, rl] = await Promise.all([
+    // reading_lessons loaded separately so it can never block phrases/dialogues
+    const [p, d, l, b] = await Promise.all([
       sb.from('phrases').select('*').order('category').order('sort_order').order('id'),
       sb.from('dialogues').select('*, dialogue_lines(*)').order('sort_order').order('id'),
       sb.from('levels').select('*').order('min_xp'),
       sb.from('badges').select('*').order('sort_order').order('id'),
-      sb.from('reading_lessons').select('*').order('sort_order').order('id')
     ]);
-    // phrases & dialogues là bắt buộc; levels/badges/reading_lessons có thể dùng defaults
+    // phrases & dialogues là bắt buộc; levels/badges có thể dùng defaults
     if(p.error){ console.warn('[live] phrases error:', p.error?.message); return false; }
     if(d.error){ console.warn('[live] dialogues error:', d.error?.message); return false; }
     if(l.error) console.warn('[live] levels error (dùng defaults):', l.error?.message);
     if(b.error) console.warn('[live] badges error (dùng defaults):', b.error?.message);
-    if(rl.error) console.warn('[live] reading_lessons error:', rl.error?.message);
-    else if((rl.data||[]).length){ READING_LESSONS = rl.data.map(r=>({...r})); console.info('[live] reading_lessons: '+READING_LESSONS.length+' bài'); }
-    else console.warn('[live] reading_lessons: trả về rỗng — kiểm tra RLS policy anon SELECT trên Supabase');
+    // Load reading_lessons separately with a 8s timeout so it can't block anything
+    try {
+      const rl = await Promise.race([
+        sb.from('reading_lessons').select('*').order('sort_order').order('id'),
+        new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),8000))
+      ]);
+      if(rl.error) console.warn('[live] reading_lessons error:', rl.error?.message);
+      else if((rl.data||[]).length){ READING_LESSONS=rl.data.map(r=>({...r})); console.info('[live] reading_lessons: '+READING_LESSONS.length+' bài'); }
+      else console.warn('[live] reading_lessons: anon nhận được [] — kiểm tra RLS SELECT policy cho anon');
+    } catch(e){ console.warn('[live] reading_lessons skip:',e.message); }
     // categories đã được xử lý bởi syncCategories() — không cần làm lại ở đây
     // ── Phrases → DATA ──
     if((p.data||[]).length){
