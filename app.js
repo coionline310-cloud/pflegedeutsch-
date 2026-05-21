@@ -749,10 +749,11 @@ function renderTopicTabs(){
   const el=document.getElementById('topicTabs');
   if(!el) return;
   if(!_topics.length){el.style.display='none';return;}
-  el.style.display='';
   let html=`<button class="topic-tab${_activeTopic===null?' active':''}" onclick="navToTopic(null)">🌐 Tất cả</button>`;
   html+=_topics.map(t=>`<button class="topic-tab${_activeTopic===t.key?' active':''}" onclick="navToTopic('${t.key}')" style="--tc:${t.color||'var(--blue)'};">${t.icon} ${t.label}</button>`).join('');
   el.innerHTML=html;
+  el.style.cssText='display:flex!important;gap:6px;padding:.55rem 1.1rem .45rem;background:var(--s1);border-bottom:1px solid var(--b1);overflow-x:auto;scrollbar-width:none;flex-shrink:0;';
+  console.info('[live] renderTopicTabs called, topics:', _topics.length);
 }
 
 function navToTopic(key){
