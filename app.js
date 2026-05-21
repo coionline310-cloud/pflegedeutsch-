@@ -681,7 +681,6 @@ function navTo(pg){
   if(isCatPage)ensurePage(pg);
   if(pg==='dashboard')renderDashboard();
   if(pg==='dialogue')renderDialogues();
-  if(pg==='reading')renderReadingLessons();
   if(pg==='srs')renderSRS();
   if(pg==='roleplay')renderRoleplay();
   if(window.innerWidth<720)document.getElementById('sidebar').classList.remove('open');
@@ -1246,231 +1245,6 @@ function rateSRS(q){
   if(q===0) srsQ.queue.push({...srsQ.card});
   srsQ.idx++;
   setTimeout(renderSRSCard,280);
-}
-
-// ════════════════════════════════════════════════════════
-// READING — Karaoke Luyện Nghe
-// ════════════════════════════════════════════════════════
-let READING_LESSONS=[];
-let _rlCur=null,_rlRate=0.8;
-
-function _renderRLList(){
-  const el=document.getElementById('reading-main');
-  if(!el)return;
-  el.innerHTML=`<div class="rl-list">`+READING_LESSONS.map((l,i)=>`
-    <div class="rl-card" onclick="openReadingLesson(${i})">
-      <div class="rl-card-ic">${l.icon||'🎧'}</div>
-      <div class="rl-card-body">
-        <div class="rl-card-title">${l.title}</div>
-        <div class="rl-card-de">${(l.de_text||'').slice(0,85)}${(l.de_text||'').length>85?'…':''}</div>
-        ${l.audio_path && Array.isArray(l.word_timestamps) && l.word_timestamps.length ? '<span class="rl-has-audio rl-has-karaoke">🎵 Karaoke</span>' : (l.audio_url ? '<span class="rl-has-audio">🎙 Audio Drive</span>' : '')}
-      </div>
-      <div class="rl-diff diff-${l.difficulty||'easy'}">${l.difficulty==='hard'?'Nâng cao':l.difficulty==='medium'?'Trung bình':'Cơ bản'}</div>
-    </div>`).join('')+`</div>`;
-}
-async function renderReadingLessons(){
-  const el=document.getElementById('reading-main');
-  if(!el)return;
-  stopHighlight();
-  if(READING_LESSONS.length){_renderRLList();return;}
-  const SB_URL=window.SUPABASE_URL, SB_KEY=window.SUPABASE_ANON_KEY;
-  if(!SB_URL||!SB_KEY||SB_URL.includes('YOUR-PROJECT')){
-    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">🎧</div><div>Chưa có bài luyện nghe nào.<br>Thêm bài mới trong <a href="admin.html" style="color:var(--teal)">Admin → Karaoke Nghe</a>.</div></div>`;
-    return;
-  }
-  el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic" style="font-size:1.4rem">⏳</div><div>Đang tải...</div></div>`;
-  try {
-    const ac=new AbortController();
-    const tid=setTimeout(()=>ac.abort(),10000);
-    // Use raw fetch to bypass any Supabase JS client hang issues
-    const res=await fetch(`${SB_URL}/rest/v1/reading_lessons?select=*&order=sort_order.asc,id.asc`,{
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Accept':'application/json'},
-      signal:ac.signal
-    });
-    clearTimeout(tid);
-    if(!res.ok){
-      const err=await res.text().catch(()=>'');
-      console.warn('[reading] HTTP error',res.status,err);
-      el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">⚠️</div><div style="color:var(--yellow)">Lỗi HTTP ${res.status}.<br><small style="color:var(--t3)">${err.slice(0,120)}</small></div></div>`;
-      return;
-    }
-    const data=await res.json();
-    console.info('[reading] raw fetch OK:',data.length,'bài');
-    if(data.length){READING_LESSONS=data;_renderRLList();}
-    else el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">🎧</div><div>Chưa có bài luyện nghe nào.<br>Thêm bài mới trong <a href="admin.html" style="color:var(--teal)">Admin → Karaoke Nghe</a>.</div></div>`;
-  } catch(e){
-    console.warn('[reading] fetch error:',e.message);
-    const isTO=e.name==='AbortError';
-    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">⚠️</div><div style="color:var(--yellow)">${isTO?'Timeout — Supabase không phản hồi.':'Lỗi kết nối: '+e.message}<br><small style="color:var(--t3)">Thử tải lại trang.</small></div></div>`;
-  }
-}
-
-// Build word-span HTML from plain text
-function _rlWrapWords(text){
-  return (text||'').split(/(\s+)/).map(tok=>
-    /^\s+$/.test(tok)?tok:`<span class="hl-w">${tok.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`
-  ).join('');
-}
-
-function openReadingLesson(i){
-  _rlCur=i;
-  const l=READING_LESSONS[i];
-  if(!l) return;
-  stopHighlight();
-  const el=document.getElementById('reading-main');
-  const diff=l.difficulty==='hard'?'Nâng cao':l.difficulty==='medium'?'Trung bình':'Cơ bản';
-  const navRow=READING_LESSONS.length>1?`
-    <div class="rl-nav-row">
-      ${i>0?`<button class="rl-nav-btn" onclick="openReadingLesson(${i-1})">← Bài trước</button>`:'<span></span>'}
-      <span class="rl-nav-count">${i+1} / ${READING_LESSONS.length}</span>
-      ${i<READING_LESSONS.length-1?`<button class="rl-nav-btn" onclick="openReadingLesson(${i+1})">Bài tiếp →</button>`:'<span></span>'}
-    </div>`:'';
-  const wts=Array.isArray(l.word_timestamps)?l.word_timestamps:[];
-  const hasRealSync=!!(l.audio_path&&wts.length>0);
-  if(hasRealSync){
-    // ── Karaoke mode: Supabase Storage audio + Whisper word timestamps ──
-    const SB_URL=window.SUPABASE_URL;
-    const audioUrl=`${SB_URL}/storage/v1/object/public/karaoke-audio/${l.audio_path}`;
-    let html='';
-    for(let j=0;j<wts.length;j++){
-      const w=wts[j];
-      const word=(w.word||'').trim();
-      if(!word) continue;
-      const safeWord=word.replace(/&/g,'&amp;').replace(/</g,'&lt;');
-      const needSpace=j>0&&!/^[.,!?;:)»\-]/.test(word);
-      if(needSpace) html+=' ';
-      html+=`<span class="hl-w" data-s="${w.start??0}" data-e="${w.end??''}">${safeWord}</span>`;
-    }
-    el.innerHTML=`
-      <div class="rl-player rl-karaoke-mode">
-        <div class="rl-player-hdr">
-          <button class="rl-back-btn" onclick="renderReadingLessons()">← Danh sách</button>
-          <div class="rl-player-meta">
-            <div class="rl-player-title">${l.title}</div>
-            <span class="rl-diff diff-${l.difficulty||'easy'}">${diff}</span>
-          </div>
-        </div>
-        <div class="rl-karaoke-text" id="rl-de-text">${html}</div>
-        ${l.vi_text?`<div class="rl-vi-karaoke">${l.vi_text.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>`:''}
-        ${navRow}
-        <audio id="rl-audio-el" src="${audioUrl}" preload="auto"></audio>
-        <div class="rl-karaoke-bar">
-          <button class="rl-kb-play" id="rl-kb-play" onclick="toggleRLKaraoke()">▶</button>
-          <div class="rl-kb-progress" onclick="seekRL(event)">
-            <div class="rl-kb-fill" id="rl-kb-fill"></div>
-          </div>
-          <span class="rl-kb-time" id="rl-kb-time">0:00 / 0:00</span>
-        </div>
-      </div>`;
-    _rlSetupRealSync(document.getElementById('rl-audio-el'),wts);
-  } else {
-    // ── Fallback: Drive iframe + TTS word highlight ──
-    const embedUrl=getDriveEmbedUrl(l.audio_url);
-    el.innerHTML=`
-      <div class="rl-player">
-        <div class="rl-player-hdr">
-          <button class="rl-back-btn" onclick="renderReadingLessons()">← Danh sách</button>
-          <div class="rl-player-meta">
-            <div class="rl-player-title">${l.title}</div>
-            <span class="rl-diff diff-${l.difficulty||'easy'}">${diff}</span>
-          </div>
-        </div>
-        ${embedUrl?`<div class="rl-audio-wrap">
-          <div class="rl-audio-lbl">🎙 Nghe audio gốc (Google Drive)</div>
-          <iframe src="${embedUrl}" class="rl-audio-frame" allow="autoplay" allowfullscreen></iframe>
-        </div>`:''}
-        <div class="rl-text-box">
-          <div class="rl-de" id="rl-de-text">${_rlWrapWords(l.de_text)}</div>
-          ${l.vi_text?`<div class="rl-vi">${l.vi_text}</div>`:''}
-        </div>
-        <div class="rl-controls">
-          <button class="rl-play-btn" id="rl-play-btn" onclick="toggleRLPlay()">▶ Tô đậm từng chữ</button>
-          <div class="rl-rates">
-            <span class="rl-rate-lbl">Tốc độ:</span>
-            ${[0.6,0.8,1.0].map(r=>`<button class="rl-rate-btn${_rlRate===r?' active':''}" onclick="setRLRate(${r},this)">×${r}</button>`).join('')}
-          </div>
-        </div>
-        ${navRow}
-      </div>`;
-  }
-}
-
-// ── Real-time sync: timeupdate → word highlight ───────────
-function _rlSetupRealSync(audio,wts){
-  if(!audio||!wts||!wts.length) return;
-  let lastIdx=-1;
-  function updateHL(){
-    const t=audio.currentTime;
-    const wEls=document.querySelectorAll('#rl-de-text .hl-w');
-    if(!wEls.length) return;
-    let newIdx=-1;
-    for(let i=0;i<wts.length;i++){
-      const w=wts[i];
-      if(t>=w.start&&t<(w.end??w.start+0.4)){newIdx=i;break;}
-    }
-    if(newIdx!==lastIdx){
-      if(lastIdx>=0&&wEls[lastIdx]){wEls[lastIdx].classList.remove('hl-active');wEls[lastIdx].classList.add('hl-done');}
-      if(newIdx>=0&&wEls[newIdx]){wEls[newIdx].classList.remove('hl-done');wEls[newIdx].classList.add('hl-active');wEls[newIdx].scrollIntoView({behavior:'smooth',block:'nearest'});}
-      lastIdx=newIdx;
-    }
-    const fill=document.getElementById('rl-kb-fill');
-    const timeEl=document.getElementById('rl-kb-time');
-    if(fill&&audio.duration>0) fill.style.width=(t/audio.duration*100)+'%';
-    if(timeEl) timeEl.textContent=_rlFmtTime(t)+' / '+_rlFmtTime(audio.duration||0);
-  }
-  audio.addEventListener('timeupdate',updateHL);
-  audio.addEventListener('play',()=>{const b=document.getElementById('rl-kb-play');if(b)b.textContent='⏸';});
-  audio.addEventListener('pause',()=>{const b=document.getElementById('rl-kb-play');if(b)b.textContent='▶';});
-  audio.addEventListener('ended',()=>{
-    const b=document.getElementById('rl-kb-play');if(b)b.textContent='▶';
-    document.querySelectorAll('#rl-de-text .hl-w').forEach(w=>w.classList.remove('hl-active','hl-done'));
-    lastIdx=-1;
-  });
-  audio.addEventListener('seeked',()=>{
-    const t=audio.currentTime;
-    const wEls=document.querySelectorAll('#rl-de-text .hl-w');
-    wts.forEach((w,i)=>{
-      if(wEls[i]){
-        if((w.end??w.start+0.4)<=t){wEls[i].classList.add('hl-done');wEls[i].classList.remove('hl-active');}
-        else{wEls[i].classList.remove('hl-done','hl-active');}
-      }
-    });
-    lastIdx=-1;
-  });
-}
-function _rlFmtTime(s){
-  if(!isFinite(s)||s<0) return '0:00';
-  const m=Math.floor(s/60),ss=Math.floor(s%60);
-  return m+':'+(ss<10?'0':'')+ss;
-}
-function toggleRLKaraoke(){
-  const audio=document.getElementById('rl-audio-el');
-  if(!audio){toggleRLPlay();return;}
-  if(audio.paused){audio.play().catch(e=>{if(!e.message?.includes('interrupted')&&e.name!=='AbortError')console.warn('[audio]',e);});}
-  else audio.pause();
-}
-function seekRL(event){
-  const audio=document.getElementById('rl-audio-el');
-  if(!audio||!audio.duration) return;
-  const rect=event.currentTarget.getBoundingClientRect();
-  const pct=Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width));
-  audio.currentTime=pct*audio.duration;
-}
-
-function toggleRLPlay(){
-  const de=document.getElementById('rl-de-text');
-  const btn=document.getElementById('rl-play-btn');
-  if(!de||_rlCur===null) return;
-  const l=READING_LESSONS[_rlCur];
-  if(!l) return;
-  if(_hl&&_hl.el===de){ stopHighlight(); }
-  else { speakHighlight(l.de_text,de,btn,_rlRate); }
-}
-
-function setRLRate(rate,btn){
-  _rlRate=rate;
-  document.querySelectorAll('.rl-rate-btn').forEach(b=>b.classList.remove('active'));
-  if(btn) btn.classList.add('active');
 }
 
 // ════════════════════════════════════════════════════════
@@ -2249,7 +2023,6 @@ if(!sessionStorage.getItem('_wXP')){
   };
 
   async function loadAll(){
-    // reading_lessons loaded separately so it can never block phrases/dialogues
     const [p, d, l, b] = await Promise.all([
       sb.from('phrases').select('*').order('category').order('sort_order').order('id'),
       sb.from('dialogues').select('*, dialogue_lines(*)').order('sort_order').order('id'),
@@ -2261,21 +2034,6 @@ if(!sessionStorage.getItem('_wXP')){
     if(d.error){ console.warn('[live] dialogues error:', d.error?.message); return false; }
     if(l.error) console.warn('[live] levels error (dùng defaults):', l.error?.message);
     if(b.error) console.warn('[live] badges error (dùng defaults):', b.error?.message);
-    // Load reading_lessons via raw fetch to avoid Supabase JS client hang
-    try {
-      const ac2=new AbortController();
-      const tid2=setTimeout(()=>ac2.abort(),8000);
-      const rlRes=await fetch(`${URL}/rest/v1/reading_lessons?select=*&order=sort_order.asc,id.asc`,{
-        headers:{'apikey':KEY,'Authorization':'Bearer '+KEY,'Accept':'application/json'},
-        signal:ac2.signal
-      });
-      clearTimeout(tid2);
-      if(rlRes.ok){
-        const rlData=await rlRes.json();
-        if(rlData.length){ READING_LESSONS=rlData; console.info('[live] reading_lessons: '+rlData.length+' bài'); }
-        else console.warn('[live] reading_lessons: anon nhận được [] — kiểm tra RLS SELECT policy cho anon');
-      } else console.warn('[live] reading_lessons HTTP error:',rlRes.status);
-    } catch(e){ console.warn('[live] reading_lessons skip:',e.message); }
     // categories đã được xử lý bởi syncCategories() — không cần làm lại ở đây
     // ── Phrases → DATA ──
     if((p.data||[]).length){
@@ -2344,14 +2102,11 @@ if(!sessionStorage.getItem('_wXP')){
     // Xóa cache trang đã render để ensurePage() dựng lại với DATA mới
     document.querySelectorAll('.page').forEach(p=>{
       const pg = p.id.replace(/^page-/, '');
-      if(!['dashboard','exercise','dialogue','srs','roleplay','reading'].includes(pg)) p.innerHTML = '';
+      if(!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg)) p.innerHTML = '';
     });
     // Clear dialogue list so renderDialogues() rebuilds with fresh Supabase data
     const dlEl=document.getElementById('dialogue-list');
     if(dlEl) dlEl.innerHTML='';
-    // Clear reading-main so renderReadingLessons() rebuilds with fresh data
-    const rlEl=document.getElementById('reading-main');
-    if(rlEl) rlEl.innerHTML='';
     stopHighlight();
     Object.keys(flashState).forEach(k=>delete flashState[k]);
     recomputeCounts();
@@ -2361,7 +2116,6 @@ if(!sessionStorage.getItem('_wXP')){
     else if(pg==='dialogue') renderDialogues();
     else if(pg==='srs')      renderSRS();
     else if(pg==='roleplay') renderRoleplay();
-    else if(pg==='reading')  renderReadingLessons();
     else if(pg && pg!=='exercise') ensurePage(pg);
   }
 

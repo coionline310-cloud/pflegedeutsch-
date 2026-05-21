@@ -148,7 +148,7 @@ async function initApp(){
 // ══════════════════════════════════════════════════════════
 const PANEL_TITLES = {
   overview:'Dashboard', phrases:'Từ vựng & Cụm từ', categories:'Danh mục',
-  dialogues:'Hội thoại', reading:'Karaoke Luyện Nghe', levels:'Levels', badges:'Badges',
+  dialogues:'Hội thoại', levels:'Levels', badges:'Badges',
   users:'Người dùng', settings:'Cài đặt'
 };
 function showPanel(id){
@@ -161,7 +161,6 @@ function showPanel(id){
   document.getElementById('admSidebar').classList.remove('open');
   // Lazy load
   if(id==='dialogues') loadDialogues();
-  else if(id==='reading') loadReadingLessons();
   else if(id==='levels') loadLevels();
   else if(id==='badges') loadBadges();
   else if(id==='users')  loadUsers();
@@ -173,11 +172,10 @@ function showPanel(id){
 // OVERVIEW
 // ══════════════════════════════════════════════════════════
 async function loadOverview(){
-  const [p,d,dl,rl,l,b,u] = await Promise.all([
+  const [p,d,dl,l,b,u] = await Promise.all([
     sb.from('phrases').select('*', {count:'exact',head:true}),
     sb.from('dialogues').select('*', {count:'exact',head:true}),
     sb.from('dialogue_lines').select('*', {count:'exact',head:true}),
-    sb.from('reading_lessons').select('*', {count:'exact',head:true}),
     sb.from('levels').select('*', {count:'exact',head:true}),
     sb.from('badges').select('*', {count:'exact',head:true}),
     sb.from('profiles').select('*', {count:'exact',head:true}),
@@ -185,7 +183,6 @@ async function loadOverview(){
   document.getElementById('st-phrases').textContent = p.count??'—';
   document.getElementById('st-dialogues').textContent = d.count??'—';
   document.getElementById('st-lines').textContent = dl.count??'—';
-  document.getElementById('st-reading').textContent = rl.count??'—';
   document.getElementById('st-levels').textContent = l.count??'—';
   document.getElementById('st-badges').textContent = b.count??'—';
   document.getElementById('st-users').textContent = u.count??'—';
@@ -905,12 +902,10 @@ async function checkDB(){
     }
 
     // 3. Tables exist + read
-    for(const tbl of ['phrases','dialogues','dialogue_lines','levels','badges','categories','reading_lessons']){
+    for(const tbl of ['phrases','dialogues','dialogue_lines','levels','badges','categories']){
       const {count,error}=await _withTO(sb.from(tbl).select('*',{count:'exact',head:true}));
-      if(error){
-        if(tbl==='reading_lessons') lines.push(warn('Bảng "reading_lessons": chưa tạo → chạy supabase-reading.sql'));
-        else lines.push(fail(`Bảng "${tbl}": ${error.message}`));
-      } else lines.push(ok(`Bảng "${tbl}": ${count} dòng`));
+      if(error) lines.push(fail(`Bảng "${tbl}": ${error.message}`));
+      else lines.push(ok(`Bảng "${tbl}": ${count} dòng`));
     }
 
     // 4. Anon read test
@@ -1201,287 +1196,6 @@ function parseCSVLine(line){
   }
   result.push(field);
   return result;
-}
-
-// ══════════════════════════════════════════════════════════
-// KARAOKE LUYỆN NGHE (READING LESSONS)
-// ══════════════════════════════════════════════════════════
-let _rlData = [];
-let _rlEditId = null;
-let _rlSelectedFile = null;
-let _rlTimestamps = [];
-let _whisperWorker = null;
-
-function onRLFileSelect(input) {
-  const file = input.files[0];
-  if (!file) return;
-  _rlSelectedFile = file;
-  _rlTimestamps = [];
-  const sizeMB = (file.size / 1024 / 1024).toFixed(1);
-  document.getElementById('rl-file-name').textContent = `${file.name} (${sizeMB} MB)`;
-  const btn = document.getElementById('rl-transcribe-btn');
-  btn.style.display = 'block';
-  btn.textContent = '🎙 Phiên âm tự động với Whisper.js';
-  btn.disabled = false;
-  const status = document.getElementById('rl-transcribe-status');
-  status.style.display = 'none';
-}
-
-async function transcribeRL() {
-  if (!_rlSelectedFile) return;
-  const btn = document.getElementById('rl-transcribe-btn');
-  const status = document.getElementById('rl-transcribe-status');
-  btn.disabled = true;
-  status.style.display = 'block';
-  status.style.color = 'var(--t2)';
-  try {
-    // Bước 1: Giải mã audio trên main thread (AudioContext không dùng được trong Worker)
-    btn.textContent = '⏳ Đang giải mã audio...';
-    status.textContent = 'Đang giải mã file audio sang PCM 16 kHz...';
-    const arrayBuffer = await _rlSelectedFile.arrayBuffer();
-    const audioCtx = new AudioContext({ sampleRate: 16000 });
-    let float32Audio;
-    try {
-      const decoded = await audioCtx.decodeAudioData(arrayBuffer);
-      float32Audio = decoded.getChannelData(0); // mono, 16 kHz
-    } finally {
-      audioCtx.close();
-    }
-    // Bước 2: Tạo/tái dùng Web Worker (model giữ nguyên trong Worker — không tải lại)
-    if (!_whisperWorker) {
-      _whisperWorker = new Worker(
-        new URL('./whisper-worker.js', location.href),
-        { type: 'module' }
-      );
-    }
-    btn.textContent = '⏳ Đang phiên âm (nền)...';
-    // Bước 3: Gửi Float32Array sang Worker và đợi kết quả (zero-copy transfer)
-    const result = await new Promise((resolve, reject) => {
-      const handler = ({ data }) => {
-        if (data.type === 'progress') {
-          status.textContent = `Đang tải model: ${data.file} — ${data.pct}%`;
-        } else if (data.type === 'status') {
-          status.textContent = data.text;
-        } else if (data.type === 'result') {
-          _whisperWorker.removeEventListener('message', handler);
-          resolve(data);
-        } else if (data.type === 'error') {
-          _whisperWorker.removeEventListener('message', handler);
-          reject(new Error(data.message));
-        }
-      };
-      _whisperWorker.addEventListener('message', handler);
-      _whisperWorker.onerror = (e) => {
-        _whisperWorker.removeEventListener('message', handler);
-        reject(new Error(e.message || 'Worker error'));
-      };
-      _whisperWorker.postMessage({ type: 'run', audio: float32Audio }, [float32Audio.buffer]);
-    });
-    document.getElementById('rl-de').value = (result.text || '').trim();
-    _rlTimestamps = (result.chunks || [])
-      .filter(c => c.timestamp && c.timestamp[0] != null)
-      .map(c => ({
-        word: (c.text || '').trim(),
-        start: c.timestamp[0],
-        end: c.timestamp[1] != null ? c.timestamp[1] : c.timestamp[0] + 0.4
-      }))
-      .filter(w => w.word.length > 0);
-    status.style.color = 'var(--green)';
-    status.textContent = `✓ Phiên âm xong! ${_rlTimestamps.length} từ có timestamp · Nhấn Lưu để hoàn tất.`;
-    btn.textContent = '🔄 Phiên âm lại';
-    btn.disabled = false;
-  } catch (e) {
-    if (_whisperWorker) { _whisperWorker.terminate(); _whisperWorker = null; }
-    status.style.color = 'var(--red)';
-    status.textContent = 'Lỗi: ' + (e.message || String(e));
-    btn.textContent = '🎙 Phiên âm tự động với Whisper.js';
-    btn.disabled = false;
-    console.error('[whisper]', e);
-  }
-}
-
-async function loadReadingLessons(){
-  const {data, error} = await sb.from('reading_lessons').select('*').order('sort_order').order('id');
-  if(error){
-    const el = document.getElementById('readingList');
-    if(el) el.innerHTML = `<div class="info-box" style="color:var(--yellow)">
-      ⚠ Bảng <code>reading_lessons</code> chưa tồn tại trong Supabase.<br>
-      Vào <strong>SQL Editor</strong> trong Supabase Dashboard và chạy file <code>supabase-reading.sql</code> để tạo bảng.
-    </div>`;
-    return;
-  }
-  _rlData = data || [];
-  renderReadingLessonsAdmin();
-}
-
-function renderReadingLessonsAdmin(){
-  const el = document.getElementById('readingList');
-  if(!el) return;
-  if(!_rlData.length){
-    el.innerHTML = '<div class="empty-state">Chưa có bài nào. Thêm bài đầu tiên!</div>';
-    return;
-  }
-  const diffLabel = {easy:'Cơ bản', medium:'Trung bình', hard:'Nâng cao'};
-  el.innerHTML = `<div class="tbl-wrap"><table>
-    <thead><tr><th>#</th><th>Icon</th><th>Tiêu đề</th><th>Độ khó</th><th>Audio</th><th>Thứ tự</th><th>Thao tác</th></tr></thead>
-    <tbody>${_rlData.map((r,i)=>`
-      <tr>
-        <td style="color:var(--t3)">${i+1}</td>
-        <td style="font-size:1.2rem">${r.icon||'🎧'}</td>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title}</td>
-        <td><span class="diff-${r.difficulty||'easy'}" style="display:inline-block;font-size:.63rem;font-weight:700;padding:2px 7px;border-radius:8px">${diffLabel[r.difficulty]||r.difficulty}</span></td>
-        <td>${r.audio_path ? (Array.isArray(r.word_timestamps)&&r.word_timestamps.length ? `<span style="color:var(--teal);font-size:.72rem">🎵 Karaoke·${r.word_timestamps.length}từ</span>` : '<span style="color:var(--yellow);font-size:.72rem">🎵 Storage</span>') : (r.audio_url ? '<span style="color:var(--t2);font-size:.75rem">🔗 Drive</span>' : '<span style="color:var(--t4);font-size:.75rem">—</span>')}</td>
-        <td style="color:var(--t3)">${r.sort_order}</td>
-        <td>
-          <button class="btn btn-blue btn-sm" onclick="openRLModal(${r.id})">✏️</button>
-          <button class="btn btn-red btn-sm" onclick="deleteRL(${r.id})">🗑️</button>
-        </td>
-      </tr>`).join('')}
-    </tbody>
-  </table></div>`;
-}
-
-function openRLModal(id=null){
-  _rlEditId = id;
-  _rlSelectedFile = null;
-  _rlTimestamps = [];
-  const r = id ? _rlData.find(x=>x.id===id) : null;
-  document.getElementById('rlModalTitle').textContent = id ? 'Sửa bài Karaoke Nghe' : 'Thêm bài Karaoke Nghe';
-  document.getElementById('rl-title').value   = r?.title || '';
-  document.getElementById('rl-icon').value    = r?.icon  || '🎧';
-  document.getElementById('rl-difficulty').value = r?.difficulty || 'easy';
-  document.getElementById('rl-de').value      = r?.de_text || '';
-  document.getElementById('rl-vi').value      = r?.vi_text || '';
-  document.getElementById('rl-audio').value   = r?.audio_url || '';
-  document.getElementById('rl-sort').value    = r?.sort_order ?? 0;
-  // Reset upload UI
-  document.getElementById('rl-file-name').textContent = 'Chưa chọn file';
-  const transcribeBtn = document.getElementById('rl-transcribe-btn');
-  transcribeBtn.style.display = 'none';
-  transcribeBtn.disabled = false;
-  transcribeBtn.textContent = '🎙 Phiên âm tự động với Whisper.js';
-  const transcribeStatus = document.getElementById('rl-transcribe-status');
-  transcribeStatus.style.display = 'none';
-  const fileInput = document.getElementById('rl-audio-file');
-  if (fileInput) fileInput.value = '';
-  // Show existing Storage audio info
-  const existingAudio = document.getElementById('rl-existing-audio');
-  if (r?.audio_path) {
-    const fileName = r.audio_path.split('/').pop();
-    const wc = Array.isArray(r.word_timestamps) ? r.word_timestamps.length : 0;
-    existingAudio.style.display = 'block';
-    existingAudio.innerHTML = wc > 0
-      ? `🎵 Storage audio: <code>${fileName}</code> · <span style="color:var(--green)">${wc} từ có timestamp</span>`
-      : `🎵 Storage audio: <code>${fileName}</code> · <span style="color:var(--yellow)">Chưa có timestamp — Phiên âm để sync</span>`;
-  } else {
-    existingAudio.style.display = 'none';
-  }
-  document.getElementById('rlModal').style.display = 'flex';
-  setTimeout(()=>document.getElementById('rl-title').focus(), 80);
-}
-
-function closeRLModal(){
-  document.getElementById('rlModal').style.display = 'none';
-}
-
-async function saveRL(){
-  const title = document.getElementById('rl-title').value.trim();
-  const de_text = document.getElementById('rl-de').value.trim();
-  if(!title){ toast('Vui lòng nhập tiêu đề'); return; }
-  if(!de_text){ toast('Vui lòng nhập nội dung tiếng Đức'); return; }
-  const btn = document.getElementById('rlSaveBtn');
-  btn.disabled = true; btn.textContent = 'Đang lưu...';
-  const existing = _rlEditId ? _rlData.find(x=>x.id===_rlEditId) : null;
-  let audio_path = existing?.audio_path || null;
-  let word_timestamps = existing?.word_timestamps || [];
-  // Upload audio nếu có file mới
-  if (_rlSelectedFile) {
-    btn.textContent = 'Đang upload audio...';
-    const ext = (_rlSelectedFile.name.split('.').pop() || 'mp3').toLowerCase();
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
-    // Dùng XMLHttpRequest để có timeout + không treo UI
-    let uploadedPath;
-    try {
-      uploadedPath = await new Promise((resolve, reject) => {
-        const _url = SB_URL;
-        const _key = SB_KEY;
-        // Lấy access token từ session hiện tại
-        sb.auth.getSession().then(({ data: { session } }) => {
-          const token = session?.access_token || _key;
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', `${_url}/storage/v1/object/karaoke-audio/${fileName}`);
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-          xhr.setRequestHeader('x-upsert', 'false');
-          xhr.timeout = 90000; // 90 giây
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              const pct = Math.round(e.loaded / e.total * 100);
-              btn.textContent = `Đang upload... ${pct}%`;
-            }
-          };
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(fileName);
-            } else {
-              let msg = '';
-              try { msg = JSON.parse(xhr.responseText)?.message || xhr.responseText; } catch(e) { msg = xhr.responseText; }
-              if (xhr.status === 404 || msg.includes('not found') || msg.includes('bucket')) {
-                reject(new Error('Bucket "karaoke-audio" chưa tồn tại — chạy supabase-karaoke.sql trong SQL Editor!'));
-              } else {
-                reject(new Error(`Upload lỗi ${xhr.status}: ${msg}`));
-              }
-            }
-          };
-          xhr.onerror = () => reject(new Error('Upload thất bại — kiểm tra kết nối mạng'));
-          xhr.ontimeout = () => reject(new Error('Upload timeout 90s — Supabase Storage có thể chưa cấu hình. Chạy supabase-karaoke.sql!'));
-          xhr.send(_rlSelectedFile);
-        }).catch(reject);
-      });
-      audio_path = uploadedPath;
-      btn.textContent = 'Đang lưu...';
-    } catch(e) {
-      toast('Lỗi upload: ' + e.message, true);
-      btn.disabled = false; btn.textContent = 'Lưu';
-      return;
-    }
-  }
-  if (_rlTimestamps.length > 0) word_timestamps = _rlTimestamps;
-  const payload = {
-    title,
-    icon: document.getElementById('rl-icon').value.trim() || '🎧',
-    difficulty: document.getElementById('rl-difficulty').value,
-    de_text,
-    vi_text: document.getElementById('rl-vi').value.trim(),
-    audio_url: document.getElementById('rl-audio').value.trim() || null,
-    audio_path: audio_path || null,
-    word_timestamps,
-    sort_order: parseInt(document.getElementById('rl-sort').value)||0,
-  };
-  let error;
-  if(_rlEditId){
-    ({error} = await sb.from('reading_lessons').update(payload).eq('id', _rlEditId));
-  } else {
-    ({error} = await sb.from('reading_lessons').insert(payload));
-  }
-  btn.disabled = false; btn.textContent = 'Lưu';
-  if(error){
-    let msg = error.message || '';
-    if(msg.includes('audio_path') || msg.includes('word_timestamps'))
-      msg += ' — Chạy supabase-karaoke.sql trong SQL Editor để thêm các cột mới!';
-    toast('Lỗi: ' + msg, true);
-    return;
-  }
-  toast(_rlEditId ? '✓ Đã cập nhật bài' : '✓ Đã thêm bài mới');
-  closeRLModal();
-  await loadReadingLessons();
-}
-
-async function deleteRL(id){
-  if(!confirm('Xóa bài này?')) return;
-  const {error} = await sb.from('reading_lessons').delete().eq('id', id);
-  if(error){ toast('Lỗi xóa: ' + error.message); return; }
-  toast('Đã xóa bài');
-  await loadReadingLessons();
 }
 
 // ══════════════════════════════════════════════════════════
