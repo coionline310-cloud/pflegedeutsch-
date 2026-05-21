@@ -1254,14 +1254,9 @@ function rateSRS(q){
 let READING_LESSONS=[];
 let _rlCur=null,_rlRate=0.8;
 
-function renderReadingLessons(){
+function _renderRLList(){
   const el=document.getElementById('reading-main');
   if(!el)return;
-  stopHighlight();
-  if(!READING_LESSONS.length){
-    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">🎧</div><div>Chưa có bài luyện nghe nào.<br>Thêm bài mới trong <a href="admin.html" style="color:var(--teal)">Admin → Karaoke Nghe</a>.</div></div>`;
-    return;
-  }
   el.innerHTML=`<div class="rl-list">`+READING_LESSONS.map((l,i)=>`
     <div class="rl-card" onclick="openReadingLesson(${i})">
       <div class="rl-card-ic">${l.icon||'🎧'}</div>
@@ -1272,6 +1267,31 @@ function renderReadingLessons(){
       </div>
       <div class="rl-diff diff-${l.difficulty||'easy'}">${l.difficulty==='hard'?'Nâng cao':l.difficulty==='medium'?'Trung bình':'Cơ bản'}</div>
     </div>`).join('')+`</div>`;
+}
+async function renderReadingLessons(){
+  const el=document.getElementById('reading-main');
+  if(!el)return;
+  stopHighlight();
+  if(READING_LESSONS.length){_renderRLList();return;}
+  // Try live fetch if sbLive is available (handles RLS/timing issues)
+  const sb=window.sbLive;
+  if(!sb){
+    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">🎧</div><div>Chưa có bài luyện nghe nào.<br>Thêm bài mới trong <a href="admin.html" style="color:var(--teal)">Admin → Karaoke Nghe</a>.</div></div>`;
+    return;
+  }
+  el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic" style="font-size:1.4rem">⏳</div><div>Đang tải...</div></div>`;
+  const {data,error}=await sb.from('reading_lessons').select('*').order('sort_order').order('id');
+  if(error){
+    console.warn('[reading] fetch error:',error.message);
+    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">⚠️</div><div style="color:var(--yellow)">Lỗi tải dữ liệu.<br><small style="color:var(--t3)">${error.message}</small></div></div>`;
+    return;
+  }
+  if((data||[]).length){
+    READING_LESSONS=data;
+    _renderRLList();
+  } else {
+    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">🎧</div><div>Chưa có bài luyện nghe nào.<br>Thêm bài mới trong <a href="admin.html" style="color:var(--teal)">Admin → Karaoke Nghe</a>.</div></div>`;
+  }
 }
 
 function openReadingLesson(i){
@@ -2120,8 +2140,9 @@ if(!sessionStorage.getItem('_wXP')){
     if(d.error){ console.warn('[live] dialogues error:', d.error?.message); return false; }
     if(l.error) console.warn('[live] levels error (dùng defaults):', l.error?.message);
     if(b.error) console.warn('[live] badges error (dùng defaults):', b.error?.message);
-    if(rl.error) console.warn('[live] reading_lessons: chưa tạo bảng (chạy supabase-reading.sql):', rl.error?.message);
-    else if((rl.data||[]).length) READING_LESSONS = rl.data.map(r=>({...r}));
+    if(rl.error) console.warn('[live] reading_lessons error:', rl.error?.message);
+    else if((rl.data||[]).length){ READING_LESSONS = rl.data.map(r=>({...r})); console.info('[live] reading_lessons: '+READING_LESSONS.length+' bài'); }
+    else console.warn('[live] reading_lessons: trả về rỗng — kiểm tra RLS policy anon SELECT trên Supabase');
     // categories đã được xử lý bởi syncCategories() — không cần làm lại ở đây
     // ── Phrases → DATA ──
     if((p.data||[]).length){
