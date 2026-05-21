@@ -148,7 +148,7 @@ async function initApp(){
 // ══════════════════════════════════════════════════════════
 const PANEL_TITLES = {
   overview:'Dashboard', phrases:'Từ vựng & Cụm từ', categories:'Danh mục',
-  dialogues:'Hội thoại', levels:'Levels', badges:'Badges',
+  dialogues:'Hội thoại', reading:'Karaoke Luyện Nghe', levels:'Levels', badges:'Badges',
   users:'Người dùng', settings:'Cài đặt'
 };
 function showPanel(id){
@@ -161,6 +161,7 @@ function showPanel(id){
   document.getElementById('admSidebar').classList.remove('open');
   // Lazy load
   if(id==='dialogues') loadDialogues();
+  else if(id==='reading') loadReadingLessons();
   else if(id==='levels') loadLevels();
   else if(id==='badges') loadBadges();
   else if(id==='users')  loadUsers();
@@ -172,10 +173,11 @@ function showPanel(id){
 // OVERVIEW
 // ══════════════════════════════════════════════════════════
 async function loadOverview(){
-  const [p,d,dl,l,b,u] = await Promise.all([
+  const [p,d,dl,rl,l,b,u] = await Promise.all([
     sb.from('phrases').select('*', {count:'exact',head:true}),
     sb.from('dialogues').select('*', {count:'exact',head:true}),
     sb.from('dialogue_lines').select('*', {count:'exact',head:true}),
+    sb.from('reading_lessons').select('*', {count:'exact',head:true}),
     sb.from('levels').select('*', {count:'exact',head:true}),
     sb.from('badges').select('*', {count:'exact',head:true}),
     sb.from('profiles').select('*', {count:'exact',head:true}),
@@ -183,6 +185,7 @@ async function loadOverview(){
   document.getElementById('st-phrases').textContent = p.count??'—';
   document.getElementById('st-dialogues').textContent = d.count??'—';
   document.getElementById('st-lines').textContent = dl.count??'—';
+  document.getElementById('st-reading').textContent = rl.count??'—';
   document.getElementById('st-levels').textContent = l.count??'—';
   document.getElementById('st-badges').textContent = b.count??'—';
   document.getElementById('st-users').textContent = u.count??'—';
@@ -1196,6 +1199,102 @@ function parseCSVLine(line){
   }
   result.push(field);
   return result;
+}
+
+// ══════════════════════════════════════════════════════════
+// KARAOKE LUYỆN NGHE (READING LESSONS)
+// ══════════════════════════════════════════════════════════
+let _rlData = [];
+let _rlEditId = null;
+
+async function loadReadingLessons(){
+  const {data, error} = await sb.from('reading_lessons').select('*').order('sort_order').order('id');
+  if(error){ toast('Lỗi tải bài: ' + error.message); return; }
+  _rlData = data || [];
+  renderReadingLessonsAdmin();
+}
+
+function renderReadingLessonsAdmin(){
+  const el = document.getElementById('readingList');
+  if(!el) return;
+  if(!_rlData.length){
+    el.innerHTML = '<div class="empty-state">Chưa có bài nào. Thêm bài đầu tiên!</div>';
+    return;
+  }
+  const diffLabel = {easy:'Cơ bản', medium:'Trung bình', hard:'Nâng cao'};
+  el.innerHTML = `<div class="tbl-wrap"><table>
+    <thead><tr><th>#</th><th>Icon</th><th>Tiêu đề</th><th>Độ khó</th><th>Audio</th><th>Thứ tự</th><th>Thao tác</th></tr></thead>
+    <tbody>${_rlData.map((r,i)=>`
+      <tr>
+        <td style="color:var(--t3)">${i+1}</td>
+        <td style="font-size:1.2rem">${r.icon||'🎧'}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title}</td>
+        <td><span class="diff-${r.difficulty||'easy'}" style="display:inline-block;font-size:.63rem;font-weight:700;padding:2px 7px;border-radius:8px">${diffLabel[r.difficulty]||r.difficulty}</span></td>
+        <td>${r.audio_url?'<span style="color:var(--teal);font-size:.75rem">🎙 Có</span>':'<span style="color:var(--t4);font-size:.75rem">—</span>'}</td>
+        <td style="color:var(--t3)">${r.sort_order}</td>
+        <td>
+          <button class="btn btn-blue btn-sm" onclick="openRLModal(${r.id})">✏️</button>
+          <button class="btn btn-red btn-sm" onclick="deleteRL(${r.id})">🗑️</button>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function openRLModal(id=null){
+  _rlEditId = id;
+  const r = id ? _rlData.find(x=>x.id===id) : null;
+  document.getElementById('rlModalTitle').textContent = id ? 'Sửa bài Karaoke Nghe' : 'Thêm bài Karaoke Nghe';
+  document.getElementById('rl-title').value   = r?.title || '';
+  document.getElementById('rl-icon').value    = r?.icon  || '🎧';
+  document.getElementById('rl-difficulty').value = r?.difficulty || 'easy';
+  document.getElementById('rl-de').value      = r?.de_text || '';
+  document.getElementById('rl-vi').value      = r?.vi_text || '';
+  document.getElementById('rl-audio').value   = r?.audio_url || '';
+  document.getElementById('rl-sort').value    = r?.sort_order ?? 0;
+  document.getElementById('rlModal').style.display = 'flex';
+  setTimeout(()=>document.getElementById('rl-title').focus(), 80);
+}
+
+function closeRLModal(){
+  document.getElementById('rlModal').style.display = 'none';
+}
+
+async function saveRL(){
+  const title = document.getElementById('rl-title').value.trim();
+  const de_text = document.getElementById('rl-de').value.trim();
+  if(!title){ toast('Vui lòng nhập tiêu đề'); return; }
+  if(!de_text){ toast('Vui lòng nhập nội dung tiếng Đức'); return; }
+  const btn = document.getElementById('rlSaveBtn');
+  btn.disabled = true; btn.textContent = 'Đang lưu...';
+  const payload = {
+    title,
+    icon: document.getElementById('rl-icon').value.trim() || '🎧',
+    difficulty: document.getElementById('rl-difficulty').value,
+    de_text,
+    vi_text: document.getElementById('rl-vi').value.trim(),
+    audio_url: document.getElementById('rl-audio').value.trim() || null,
+    sort_order: parseInt(document.getElementById('rl-sort').value)||0,
+  };
+  let error;
+  if(_rlEditId){
+    ({error} = await sb.from('reading_lessons').update(payload).eq('id', _rlEditId));
+  } else {
+    ({error} = await sb.from('reading_lessons').insert(payload));
+  }
+  btn.disabled = false; btn.textContent = 'Lưu';
+  if(error){ toast('Lỗi: ' + error.message); return; }
+  toast(_rlEditId ? '✓ Đã cập nhật bài' : '✓ Đã thêm bài mới');
+  closeRLModal();
+  await loadReadingLessons();
+}
+
+async function deleteRL(id){
+  if(!confirm('Xóa bài này?')) return;
+  const {error} = await sb.from('reading_lessons').delete().eq('id', id);
+  if(error){ toast('Lỗi xóa: ' + error.message); return; }
+  toast('Đã xóa bài');
+  await loadReadingLessons();
 }
 
 // ══════════════════════════════════════════════════════════

@@ -578,7 +578,7 @@ function stopHighlight(){
   if(btn){btn.innerHTML='▶ Nghe theo dõi';btn.classList.remove('hl-playing');}
   _hl=null;
 }
-function speakHighlight(text,el,btn){
+function speakHighlight(text,el,btn,rate=0.78){
   if(_hl&&_hl.el===el){stopHighlight();return;}
   stopHighlight();
   if(!window.speechSynthesis){speakDE(text);return;}
@@ -592,7 +592,7 @@ function speakHighlight(text,el,btn){
   el.innerHTML=html;
   const wEls=el.querySelectorAll('.hl-w');
   const u=new SpeechSynthesisUtterance(text);
-  u.lang='de-DE';u.rate=0.78;
+  u.lang='de-DE';u.rate=rate;
   const vs=window.speechSynthesis.getVoices().filter(v=>v.lang.startsWith('de'));
   if(vs.length)u.voice=vs[0];
   let cur=-1;
@@ -681,6 +681,7 @@ function navTo(pg){
   if(isCatPage)ensurePage(pg);
   if(pg==='dashboard')renderDashboard();
   if(pg==='dialogue')renderDialogues();
+  if(pg==='reading')renderReadingLessons();
   if(pg==='srs')renderSRS();
   if(pg==='roleplay')renderRoleplay();
   if(window.innerWidth<720)document.getElementById('sidebar').classList.remove('open');
@@ -1245,6 +1246,90 @@ function rateSRS(q){
   if(q===0) srsQ.queue.push({...srsQ.card});
   srsQ.idx++;
   setTimeout(renderSRSCard,280);
+}
+
+// ════════════════════════════════════════════════════════
+// READING — Karaoke Luyện Nghe
+// ════════════════════════════════════════════════════════
+let READING_LESSONS=[];
+let _rlCur=null,_rlRate=0.8;
+
+function renderReadingLessons(){
+  const el=document.getElementById('reading-main');
+  if(!el)return;
+  stopHighlight();
+  if(!READING_LESSONS.length){
+    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">🎧</div><div>Chưa có bài luyện nghe nào.<br>Thêm bài mới trong <a href="admin.html" style="color:var(--teal)">Admin → Karaoke Nghe</a>.</div></div>`;
+    return;
+  }
+  el.innerHTML=`<div class="rl-list">`+READING_LESSONS.map((l,i)=>`
+    <div class="rl-card" onclick="openReadingLesson(${i})">
+      <div class="rl-card-ic">${l.icon||'🎧'}</div>
+      <div class="rl-card-body">
+        <div class="rl-card-title">${l.title}</div>
+        <div class="rl-card-de">${(l.de_text||'').slice(0,85)}${(l.de_text||'').length>85?'…':''}</div>
+        ${l.audio_url?'<span class="rl-has-audio">🎙 Audio Drive</span>':''}
+      </div>
+      <div class="rl-diff diff-${l.difficulty||'easy'}">${l.difficulty==='hard'?'Nâng cao':l.difficulty==='medium'?'Trung bình':'Cơ bản'}</div>
+    </div>`).join('')+`</div>`;
+}
+
+function openReadingLesson(i){
+  _rlCur=i;
+  const l=READING_LESSONS[i];
+  if(!l)return;
+  stopHighlight();
+  const el=document.getElementById('reading-main');
+  const embedUrl=getDriveEmbedUrl(l.audio_url);
+  const audioHtml=embedUrl?`
+    <div class="rl-audio-wrap">
+      <div class="rl-audio-lbl">🎙 Audio bản gốc (Google Drive)</div>
+      <iframe src="${embedUrl}" class="rl-audio-frame" allow="autoplay" allowfullscreen></iframe>
+    </div>`:'';
+  const diff=l.difficulty==='hard'?'Nâng cao':l.difficulty==='medium'?'Trung bình':'Cơ bản';
+  const navRow=READING_LESSONS.length>1?`
+    <div class="rl-nav-row">
+      ${i>0?`<button class="rl-nav-btn" onclick="openReadingLesson(${i-1})">← Bài trước</button>`:'<span></span>'}
+      <span class="rl-nav-count">${i+1} / ${READING_LESSONS.length}</span>
+      ${i<READING_LESSONS.length-1?`<button class="rl-nav-btn" onclick="openReadingLesson(${i+1})">Bài tiếp →</button>`:'<span></span>'}
+    </div>`:'';
+  el.innerHTML=`
+    <div class="rl-player">
+      <div class="rl-player-hdr">
+        <button class="rl-back-btn" onclick="renderReadingLessons()">← Danh sách</button>
+        <div class="rl-player-meta">
+          <div class="rl-player-title">${l.title}</div>
+          <span class="rl-diff diff-${l.difficulty||'easy'}">${diff}</span>
+        </div>
+      </div>
+      ${audioHtml}
+      <div class="rl-text-box">
+        <div class="rl-de" id="rl-de-text">${l.de_text||''}</div>
+        ${l.vi_text?`<div class="rl-vi">${l.vi_text}</div>`:''}
+      </div>
+      <div class="rl-controls">
+        <button class="rl-play-btn" id="rl-play-btn" onclick="toggleRLPlay()">▶ Phát &amp; tô đậm từng chữ</button>
+        <div class="rl-rates">
+          <span class="rl-rate-lbl">Tốc độ:</span>
+          ${[0.6,0.8,1.0].map(r=>`<button class="rl-rate-btn${_rlRate===r?' active':''}" onclick="setRLRate(${r},this)">×${r}</button>`).join('')}
+        </div>
+      </div>
+      ${navRow}
+    </div>`;
+}
+
+function toggleRLPlay(){
+  const de=document.getElementById('rl-de-text');
+  const btn=document.getElementById('rl-play-btn');
+  if(!de||_rlCur===null)return;
+  const l=READING_LESSONS[_rlCur];if(!l)return;
+  if(_hl&&_hl.el===de){stopHighlight();}
+  else{speakHighlight(l.de_text,de,btn,_rlRate);}
+}
+function setRLRate(rate,btn){
+  _rlRate=rate;
+  document.querySelectorAll('.rl-rate-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
 }
 
 // ════════════════════════════════════════════════════════
@@ -2023,17 +2108,20 @@ if(!sessionStorage.getItem('_wXP')){
   };
 
   async function loadAll(){
-    const [p, d, l, b] = await Promise.all([
+    const [p, d, l, b, rl] = await Promise.all([
       sb.from('phrases').select('*').order('category').order('sort_order').order('id'),
       sb.from('dialogues').select('*, dialogue_lines(*)').order('sort_order').order('id'),
       sb.from('levels').select('*').order('min_xp'),
-      sb.from('badges').select('*').order('sort_order').order('id')
+      sb.from('badges').select('*').order('sort_order').order('id'),
+      sb.from('reading_lessons').select('*').order('sort_order').order('id')
     ]);
-    // phrases & dialogues là bắt buộc; levels/badges có thể dùng defaults
+    // phrases & dialogues là bắt buộc; levels/badges/reading_lessons có thể dùng defaults
     if(p.error){ console.warn('[live] phrases error:', p.error?.message); return false; }
     if(d.error){ console.warn('[live] dialogues error:', d.error?.message); return false; }
     if(l.error) console.warn('[live] levels error (dùng defaults):', l.error?.message);
     if(b.error) console.warn('[live] badges error (dùng defaults):', b.error?.message);
+    if(rl.error) console.warn('[live] reading_lessons: chưa tạo bảng (chạy supabase-reading.sql):', rl.error?.message);
+    else if((rl.data||[]).length) READING_LESSONS = rl.data.map(r=>({...r}));
     // categories đã được xử lý bởi syncCategories() — không cần làm lại ở đây
     // ── Phrases → DATA ──
     if((p.data||[]).length){
@@ -2116,6 +2204,7 @@ if(!sessionStorage.getItem('_wXP')){
     else if(pg==='dialogue') renderDialogues();
     else if(pg==='srs')      renderSRS();
     else if(pg==='roleplay') renderRoleplay();
+    else if(pg==='reading')  renderReadingLessons();
     else if(pg && pg!=='exercise') ensurePage(pg);
   }
 

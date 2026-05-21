@@ -212,3 +212,8 @@ select.finp{cursor:pointer;}
 .sec-vocab{background:rgba(37,203,168,.1);color:var(--teal);}
 .sec-other{background:rgba(255,255,255,.07);color:var(--t2);}
 .cat-del-disabled{opacity:.4;cursor:not-allowed!important;}
+
+/* ── READING LESSONS ─────────────────────────────────────── */
+.diff-easy{background:rgba(47,209,122,.15);color:#2fd17a;}
+.diff-medium{background:rgba(240,192,64,.15);color:#f0c040;}
+.diff-hard{background:rgba(255,77,77,.15);color:#ff4d4d;}
