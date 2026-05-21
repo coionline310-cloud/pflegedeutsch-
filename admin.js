@@ -887,9 +887,11 @@ async function checkDB(){
   const ok=s=>`<span style="color:var(--green)">✓ ${s}</span>`;
   const fail=s=>`<span style="color:var(--red)">✗ ${s}</span>`;
   const warn=s=>`<span style="color:var(--yellow)">⚠ ${s}</span>`;
-
+  try {
   // 1. Auth
-  const {data:{user}}=await sb.auth.getUser();
+  const authRes = await sb.auth.getUser();
+  const user = authRes?.data?.user || null;
+  if(!user && authRes?.error){ lines.push(fail('Lỗi kết nối auth: '+(authRes.error.message||'network error'))); setSeedResult('<div style="line-height:1.9;font-size:.79rem;">'+lines.join('<br>')+'</div>'); btn.disabled=false;btn.textContent='🔍 Kiểm tra kết nối'; return; }
   lines.push(user?ok('Đã đăng nhập: '+user.email):fail('Chưa đăng nhập'));
 
   // 2. Profile / role
@@ -900,28 +902,32 @@ async function checkDB(){
   }
 
   // 3. Tables exist + read
-  for(const tbl of ['phrases','dialogues','dialogue_lines','levels','badges','categories']){
+  for(const tbl of ['phrases','dialogues','dialogue_lines','levels','badges','categories','reading_lessons']){
     const {count,error}=await sb.from(tbl).select('*',{count:'exact',head:true});
-    if(error)lines.push(fail(`Bảng "${tbl}": ${error.message}`));
-    else lines.push(ok(`Bảng "${tbl}": ${count} dòng`));
+    if(error){
+      if(tbl==='reading_lessons') lines.push(warn(`Bảng "reading_lessons": chưa tạo — chạy supabase-reading.sql`));
+      else lines.push(fail(`Bảng "${tbl}": ${error.message}`));
+    } else lines.push(ok(`Bảng "${tbl}": ${count} dòng`));
   }
 
   // 4. Kiểm tra anon đọc được categories không (giả lập index.html)
   lines.push('<span style="color:var(--t2);font-weight:600;">── Kiểm tra quyền anon (index.html) ──</span>');
   try {
+    const ac = new AbortController();
+    const tid = setTimeout(()=>ac.abort(), 8000);
     const anonResp = await fetch(SB_URL+'/rest/v1/categories?select=id,key,label&limit=1', {
-      headers:{'apikey':SB_KEY,'Content-Type':'application/json'}
+      headers:{'apikey':SB_KEY,'Content-Type':'application/json'}, signal:ac.signal
     });
+    clearTimeout(tid);
     if(anonResp.ok){
       lines.push(ok('Anon đọc categories → index.html nhận được danh mục ✓'));
     } else {
-      const err=await anonResp.json().catch(()=>({}));
       lines.push(fail('Anon KHÔNG đọc được categories → index.html sẽ dùng danh mục mặc định'));
       lines.push(warn('Nguyên nhân: thiếu RLS policy cho anon. Chạy SQL bên dưới để fix!'));
       document.getElementById('fixCatBtn').style.display='inline-flex';
     }
   } catch(e){
-    lines.push(fail('Anon test lỗi: '+e.message));
+    lines.push(fail('Anon test lỗi: '+(e.name==='AbortError'?'timeout (8s)':e.message)));
   }
   const testRow={category:'__test__',group_name:'test',de:'test',vi:'test',sort_order:0};
   const {data:ins,error:insErr}=await sb.from('phrases').insert(testRow).select().single();
@@ -943,6 +949,10 @@ async function checkDB(){
   const dialData=window.SEED_DIALOGUES;
   lines.push(dialData?ok(`Seed dialogues: ${dialData.length} hội thoại`):fail('window.SEED_DIALOGUES: không tìm thấy'));
 
+  } catch(e){
+    lines.push(fail('Lỗi không mong đợi: '+e.message));
+    console.error('[checkDB]', e);
+  }
   setSeedResult('<div style="line-height:1.9;font-size:.79rem;">'+lines.join('<br>')+'</div>');
   btn.disabled=false;btn.textContent='🔍 Kiểm tra kết nối';
 }
@@ -1209,7 +1219,14 @@ let _rlEditId = null;
 
 async function loadReadingLessons(){
   const {data, error} = await sb.from('reading_lessons').select('*').order('sort_order').order('id');
-  if(error){ toast('Lỗi tải bài: ' + error.message); return; }
+  if(error){
+    const el = document.getElementById('readingList');
+    if(el) el.innerHTML = `<div class="info-box" style="color:var(--yellow)">
+      ⚠ Bảng <code>reading_lessons</code> chưa tồn tại trong Supabase.<br>
+      Vào <strong>SQL Editor</strong> trong Supabase Dashboard và chạy file <code>supabase-reading.sql</code> để tạo bảng.
+    </div>`;
+    return;
+  }
   _rlData = data || [];
   renderReadingLessonsAdmin();
 }
