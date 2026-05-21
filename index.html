@@ -27,6 +27,7 @@
   <nav class="sb-nav">
     <div class="nav-sec">Tổng quan</div>
     <div class="nav-it active" data-page="dashboard" style="--tc:var(--blue)"><span class="nav-ic">📊</span>Dashboard</div>
+    <div class="nav-it" data-page="bookmarks" style="--tc:var(--pink)" onclick="navTo('bookmarks')"><span class="nav-ic">❤️</span>Yêu thích<span class="nav-badge" id="cnt-bookmarks"></span></div>
     <div class="nav-sec" id="nav-sec-comm">Giao tiếp</div>
     <div id="nav-comm-cats"></div>
     <div class="nav-sec" id="nav-sec-vocab">Từ vựng</div>
@@ -74,10 +75,14 @@
     <div class="dash-grid" id="dash-stats"></div>
     <div id="dash-badges"></div>
     <div class="prog-section"><div class="prog-title">Tiến độ theo chủ đề</div><div id="dash-progress"></div></div>
+    <div class="prog-section" id="dash-topic-prog-sec" style="display:none"><div class="prog-title">📊 Tiến độ theo lĩnh vực</div><div id="dash-topic-progress"></div></div>
     <div class="sug-section"><div class="sug-title">📌 Gợi ý ôn tập hôm nay <span class="srs-due-badge" id="srs-due-count"></span></div><div id="dash-suggest"></div></div>
   </div>
 
   <!-- VOCAB/PHRASE PAGES — generated dynamically by buildSidebarCats() in app.js -->
+
+  <!-- BOOKMARKS PAGE -->
+  <div class="page" id="page-bookmarks"></div>
 
   <!-- DIALOGUE PAGE -->
   <div class="page" id="page-dialogue">

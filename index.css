@@ -627,6 +627,11 @@ kbd{background:var(--s4);border:1px solid var(--b2);border-radius:4px;padding:1p
   color:var(--t3);padding:1px 7px;border-radius:8px;
 }
 
+/* ══ BOOKMARK BUTTON ═══════════════════════════════════ */
+.bm-btn{background:none;border:none;padding:2px 4px;cursor:pointer;font-size:.85rem;opacity:.35;transition:opacity .15s,transform .15s;flex-shrink:0;margin-left:4px;}
+.bm-btn:hover{opacity:.7;}
+.bm-btn.active{opacity:1;transform:scale(1.15);}
+
 /* ══ TOPIC TABS ══════════════════════════════════════════ */
 #topicTabs{
   display:flex;gap:6px;padding:.55rem 1.1rem .45rem;

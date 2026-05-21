@@ -18,7 +18,19 @@ const VOCAB_CATS=['vocab','anatomy','medication','documentation','nursing_proces
 let _dynCats=[];
 let _topics=[];
 let _activeTopic=null;
-let _dataFromDB=false; // true after first Supabase loadAll() succeeds
+let _dataFromDB=false;
+let _bookmarks=new Set();
+function loadBookmarks(){try{_bookmarks=new Set(JSON.parse(localStorage.getItem('pd-bookmarks')||'[]'));}catch(e){_bookmarks=new Set();}updateBmBadge();}
+function saveBookmarks(){localStorage.setItem('pd-bookmarks',JSON.stringify([..._bookmarks]));}
+function updateBmBadge(){const el=document.getElementById('cnt-bookmarks');if(el)el.textContent=_bookmarks.size||'';}
+function toggleBookmark(de,btn){
+  if(_bookmarks.has(de)){_bookmarks.delete(de);if(btn){btn.textContent='🤍';btn.classList.remove('active');btn.title='Thêm yêu thích';}}
+  else{_bookmarks.add(de);if(btn){btn.textContent='❤️';btn.classList.add('active');btn.title='Bỏ yêu thích';}}
+  saveBookmarks();updateBmBadge();
+  const bp=document.getElementById('page-bookmarks');
+  if(bp&&bp.classList.contains('active'))renderBookmarksPage();
+}
+loadBookmarks(); // true after first Supabase loadAll() succeeds
 
 // Compact DATA — representative subset (full version has 300+ items)
 let DATA={
@@ -680,7 +692,8 @@ function navTo(pg){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const pageEl=document.getElementById('page-'+pg);
   if(pageEl) pageEl.classList.add('active');
-  if(isCatPage)ensurePage(pg);
+  if(pg==='bookmarks')renderBookmarksPage();
+  else if(isCatPage)ensurePage(pg);
   if(pg==='dashboard')renderDashboard();
   if(pg==='dialogue')renderDialogues();
   if(pg==='srs')renderSRS();
@@ -769,6 +782,30 @@ document.querySelectorAll('.nav-it[data-page]').forEach(it=>{
 });
 
 // Render ngay từ CAT_META mặc định — Supabase sẽ gọi lại buildSidebarCats() khi load xong
+function renderBookmarksPage(){
+  const page=document.getElementById('page-bookmarks');
+  if(!page)return;
+  const all=flatAll().filter(p=>_bookmarks.has(p.de));
+  if(!all.length){
+    page.innerHTML='<div class="ph"><div class="pt">❤️ Yêu thích</div><div class="ps">Các mục bạn đã đánh dấu</div></div><div style="text-align:center;padding:3rem;color:var(--t3);font-size:.85rem;">Chưa có mục yêu thích.<br>Nhấn 🤍 trên bất kỳ từ nào để lưu.</div>';
+    return;
+  }
+  const html=all.map(p=>{
+    const meta=CAT_META[p.cat]||{ic:'📚',l:p.cat};
+    const safeDE=p.de.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    return `<div class="pi">
+      <div class="pi-de">${p.de}
+        <button class="pi-speak" data-de="${safeDE}" onclick="speakDE(this.dataset.de);event.stopPropagation();" title="Phát âm">🔊</button>
+        <button class="bm-btn active" data-de="${safeDE}" onclick="toggleBookmark(this.dataset.de,this);event.stopPropagation();" title="Bỏ yêu thích">❤️</button>
+      </div>
+      <div class="pi-vi">${p.vi}</div>
+      ${p.n?`<div class="pi-note">💡 ${p.n}</div>`:''}
+      <div style="font-size:.66rem;color:var(--t3);margin-top:3px;">${meta.ic} ${meta.l}</div>
+    </div>`;
+  }).join('');
+  page.innerHTML=`<div class="ph"><div class="pt">❤️ Yêu thích</div><div class="ps">${all.length} mục đã lưu</div></div><div>${html}</div>`;
+}
+
 buildSidebarCats(getDefaultCatsList());
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');}
 document.addEventListener('click',e=>{
@@ -842,8 +879,10 @@ function renderListH(cat,isV){
     const note=p.n?('<div class="'+(isV?'vi2-n':'pi-note')+'">💡 '+p.n+'</div>'):'';
     const ex=p.ex?('<div class="pi-ex">📝 '+p.ex+'</div>'):'';
     const spk=`<button class="pi-speak" data-de="${safeDE}" onclick="speakDE(this.dataset.de);event.stopPropagation();" title="Phát âm">🔊</button>`;
-    if(isV) return `<div class="vi2" ${dataStr} onclick="showDictPopup(this,event)"><div class="vi2-de">${p.de}${spk}</div><div class="vi2-vi">${p.vi}</div>${note}${ex}</div>`;
-    return `<div class="pi" ${dataStr} onclick="showDictPopup(this,event)"><div class="pi-de">${p.de}${spk}</div><div class="pi-vi">${p.vi}</div>${note}${ex}</div>`;
+    const isBm=_bookmarks.has(p.de);
+    const bm=`<button class="bm-btn${isBm?' active':''}" data-de="${safeDE}" onclick="toggleBookmark(this.dataset.de,this);event.stopPropagation();" title="${isBm?'Bỏ yêu thích':'Thêm yêu thích'}">${isBm?'❤️':'🤍'}</button>`;
+    if(isV) return `<div class="vi2" ${dataStr} onclick="showDictPopup(this,event)"><div class="vi2-de">${p.de}${spk}${bm}</div><div class="vi2-vi">${p.vi}</div>${note}${ex}</div>`;
+    return `<div class="pi" ${dataStr} onclick="showDictPopup(this,event)"><div class="pi-de">${p.de}${spk}${bm}</div><div class="pi-vi">${p.vi}</div>${note}${ex}</div>`;
   }
   return DATA[cat].map(g=>`
     <div class="grp">
@@ -1697,6 +1736,22 @@ function renderDashboard(){
     </div>`;
   }).join('');
   setTimeout(()=>document.querySelectorAll('.prog-bf').forEach(el=>el.style.width=el.dataset.w+'%'),80);
+  // Topic progress
+  const tpSec=document.getElementById('dash-topic-prog-sec');
+  const tpEl=document.getElementById('dash-topic-progress');
+  if(tpSec&&tpEl&&_topics.length){
+    tpSec.style.display='';
+    tpEl.innerHTML=_topics.map(t=>{
+      const catKeys=_dynCats.filter(c=>c.topic_id===t.id).map(c=>c.key);
+      const total=catKeys.reduce((s,k)=>s+flatCat(k).length,0);
+      const learned=catKeys.reduce((s,k)=>s+flatCat(k).filter(p=>SRS_DB[p.de]).length,0);
+      const pct=total>0?Math.round(learned/total*100):0;
+      return `<div class="prog-row"><div class="prog-nm">${t.icon} ${t.label}</div>
+        <div class="prog-bw"><div class="prog-bf" style="width:0%;background:${t.color||'var(--blue)'}" data-w="${pct}"></div></div>
+        <div class="prog-pct">${total} từ</div></div>`;
+    }).join('');
+    setTimeout(()=>tpEl.querySelectorAll('.prog-bf').forEach(el=>el.style.width=el.dataset.w+'%'),80);
+  }
   // SRS due count
   const due=countDue();
   const dc=document.getElementById('srs-due-count');
@@ -1731,7 +1786,12 @@ function doSearch(q){
   const dd=document.getElementById('srDrop');
   q=q.trim().toLowerCase();
   if(!q){dd.classList.remove('open');return;}
-  const res=flatAll().filter(p=>p.de.toLowerCase().includes(q)||p.vi.toLowerCase().includes(q)).slice(0,14);
+  let pool=flatAll();
+  if(_activeTopic!==null){
+    const tp=_topics.find(t=>t.key===_activeTopic);
+    if(tp){const catKeys=new Set(_dynCats.filter(c=>c.topic_id===tp.id).map(c=>c.key));pool=pool.filter(p=>catKeys.has(p.cat));}
+  }
+  const res=pool.filter(p=>p.de.toLowerCase().includes(q)||p.vi.toLowerCase().includes(q)).slice(0,14);
   function hl(t){return t.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<mark>$1</mark>');}
   if(!res.length){dd.innerHTML='<div style="padding:1rem;text-align:center;color:var(--t3);font-size:.8rem;">Không tìm thấy kết quả</div>';dd.classList.add('open');return;}
   dd.innerHTML=res.map(p=>`<div class="sr-it" onclick="jumpTo('${p.cat}');document.getElementById('srDrop').classList.remove('open');document.getElementById('searchInput').value='';">
@@ -1962,12 +2022,8 @@ if(!sessionStorage.getItem('_wXP')){
     const d=document.getElementById('auth-drop');
     if(d) d.style.display='none';
     clearTimeout(_cloudSaveTimer);
-    // Save progress — but don't let failure block signOut
     try { await pushProgress(); } catch(e){ console.warn('[auth] push failed:', e); }
-    // Sign out
-    const {error} = await sb.auth.signOut();
-    if(error) console.warn('[auth] signOut error:', error.message);
-    // Update UI immediately (don't wait for onAuthStateChange)
+    try { await sb.auth.signOut(); } catch(e){ console.warn('[auth] signOut error:', e.message); }
     renderAuthUI(null);
     loadSRS();
     Object.assign(GS,{xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:''});
