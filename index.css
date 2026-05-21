@@ -603,6 +603,7 @@ kbd{background:var(--s4);border:1px solid var(--b2);border-radius:4px;padding:1p
 .rl-audio-wrap{padding:.8rem 1rem;border-bottom:1px solid var(--b1);}
 .rl-audio-lbl{font-size:.72rem;color:var(--t3);margin-bottom:6px;font-weight:600;}
 .rl-audio-frame{width:100%;height:80px;border:none;border-radius:8px;background:var(--s3);}
+#rl-audio-el{display:block;width:100%;height:44px;border-radius:8px;background:var(--s3);}
 
 .rl-text-box{padding:1rem 1.1rem;}
 .rl-de{
