@@ -27,6 +27,7 @@ function toggleBookmark(de,btn){
   if(_bookmarks.has(de)){_bookmarks.delete(de);if(btn){btn.textContent='🤍';btn.classList.remove('active');btn.title='Thêm yêu thích';}}
   else{_bookmarks.add(de);if(btn){btn.textContent='❤️';btn.classList.add('active');btn.title='Bỏ yêu thích';}}
   saveBookmarks();updateBmBadge();
+  window._scheduleCloudSave?.(); // debounced cloud save for logged-in users
   const bp=document.getElementById('page-bookmarks');
   if(bp&&bp.classList.contains('active'))renderBookmarksPage();
 }
@@ -1896,7 +1897,7 @@ if(!sessionStorage.getItem('_wXP')){
     const {error} = await sb.from('user_progress').upsert({
       user_id: _currentUser.id,
       srs_db: SRS_DB,
-      game_state: GS,
+      game_state: {...GS, bookmarks: [..._bookmarks]},
       updated_at: new Date().toISOString()
     }, {onConflict:'user_id'});
     if(error) console.warn('[auth] save error:', error.message);
@@ -1915,7 +1916,13 @@ if(!sessionStorage.getItem('_wXP')){
         try{localStorage.setItem('srs_db',JSON.stringify(SRS_DB));}catch(e){}
       }
       if(data.game_state && Object.keys(data.game_state).length){
-        Object.assign(GS, data.game_state);
+        const {bookmarks: bm, ...gsData} = data.game_state;
+        Object.assign(GS, gsData);
+        if(Array.isArray(bm)){
+          _bookmarks = new Set(bm);
+          saveBookmarks();
+          updateBmBadge();
+        }
       }
       updateXPUI();
       rerenderActive();
@@ -2018,16 +2025,19 @@ if(!sessionStorage.getItem('_wXP')){
     err.textContent='✓ Đăng ký thành công! Kiểm tra email để xác nhận tài khoản (hoặc đăng nhập ngay nếu không cần xác nhận).';
   };
   window.doSignOut = async function(){
-    // Close dropdown immediately
     const d=document.getElementById('auth-drop');
     if(d) d.style.display='none';
     clearTimeout(_cloudSaveTimer);
     try { await pushProgress(); } catch(e){ console.warn('[auth] push failed:', e); }
+    _currentUser = null; // clear before signOut so SIGNED_OUT handler skips re-render
     try { await sb.auth.signOut(); } catch(e){ console.warn('[auth] signOut error:', e.message); }
-    renderAuthUI(null);
+    _bookmarks = new Set();
+    updateBmBadge();
     loadSRS();
     Object.assign(GS,{xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:''});
+    renderAuthUI(null);
     updateXPUI();
+    renderTopicTabs();
     renderDashboard();
     toast('Đã đăng xuất');
   };
@@ -2051,18 +2061,25 @@ if(!sessionStorage.getItem('_wXP')){
   // ── Auth state listener ──────────────────────────────────
   sb.auth.onAuthStateChange(async (event, session) => {
     const user = session?.user || null;
-    renderAuthUI(user);
     if(event==='SIGNED_IN'){
+      renderAuthUI(user);
       window.closeAuthModal();
-      await pullProgress();
+      await pullProgress(); // restores GS + SRS + bookmarks from Supabase
+      renderTopicTabs();
       const name = user.user_metadata?.display_name || user.email.split('@')[0];
       toast(`Xin chào ${name}! Đã đồng bộ tiến độ học ☁️`);
       renderDashboard();
     } else if(event==='SIGNED_OUT'){
+      if(_currentUser !== null) renderAuthUI(null); // skip if doSignOut already handled it
+      _bookmarks = new Set();
+      updateBmBadge();
       loadSRS();
       Object.assign(GS,{xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:''});
       updateXPUI();
+      renderTopicTabs();
       renderDashboard();
+    } else {
+      renderAuthUI(user);
     }
   });
 
@@ -2070,7 +2087,7 @@ if(!sessionStorage.getItem('_wXP')){
   sb.auth.getSession().then(({data:{session}}) => {
     if(session){
       renderAuthUI(session.user);
-      pullProgress().then(()=>renderDashboard());
+      pullProgress().then(()=>{ renderTopicTabs(); renderDashboard(); });
     } else {
       renderAuthUI(null);
     }
