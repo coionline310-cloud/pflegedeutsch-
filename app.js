@@ -2178,16 +2178,24 @@ if(!sessionStorage.getItem('_wXP')){
 
   // Boot — categories trước để CAT_META sẵn sàng trước khi render phrases
   loadSRS(); // khôi phục tiến độ SRS từ localStorage
+
+  // Load topics hoàn toàn độc lập — không chờ categories/phrases
+  sb.from('topics').select('*').order('sort_order').order('id')
+    .then(({data,error})=>{
+      if(error){console.warn('[live] topics error:',error.message);return;}
+      console.info('[live] Topics loaded:',data?.length||0);
+      if(data&&data.length){_topics=data;renderTopicTabs();}
+    });
+
   (async ()=>{
     await syncCategories(); // đồng bộ danh mục trước (cập nhật CAT_META)
     const ok = await loadAll(); // sau đó load phrases/dialogues/levels/badges
     if(ok){
       _dataFromDB = true;
-      // Retry topics nếu chưa load được (schema cache delay)
+      // Fallback nếu topics chưa load kịp
       if(!_topics.length){
-        const {data:tops2,error:topsErr2}=await sb.from('topics').select('*').order('sort_order').order('id');
-        if(topsErr2) console.warn('[live] topics retry error:', topsErr2.message);
-        else if(tops2&&tops2.length){_topics=tops2;renderTopicTabs();}
+        const {data:tops2}=await sb.from('topics').select('*').order('sort_order').order('id');
+        if(tops2&&tops2.length){_topics=tops2;renderTopicTabs();}
       }
       rerenderActive();
       firstSync = false;
