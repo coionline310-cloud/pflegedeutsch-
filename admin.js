@@ -879,6 +879,9 @@ async function changeUserRole(uid, role){
 function setSeedResult(html){document.getElementById('seedResult').innerHTML=html;}
 function logSeed(msg){console.log('[seed]',msg);}
 
+function _withTO(p, ms=10000){
+  return Promise.race([p, new Promise((_,r)=>setTimeout(()=>r(new Error(`Timeout sau ${ms/1000}s — Supabase không phản hồi (project có thể bị tạm dừng)`)),ms))]);
+}
 async function checkDB(){
   const btn=document.getElementById('checkDbBtn');
   btn.disabled=true;btn.textContent='Đang kiểm tra...';
@@ -888,69 +891,58 @@ async function checkDB(){
   const fail=s=>`<span style="color:var(--red)">✗ ${s}</span>`;
   const warn=s=>`<span style="color:var(--yellow)">⚠ ${s}</span>`;
   try {
-  // 1. Auth
-  const authRes = await sb.auth.getUser();
-  const user = authRes?.data?.user || null;
-  if(!user && authRes?.error){ lines.push(fail('Lỗi kết nối auth: '+(authRes.error.message||'network error'))); setSeedResult('<div style="line-height:1.9;font-size:.79rem;">'+lines.join('<br>')+'</div>'); btn.disabled=false;btn.textContent='🔍 Kiểm tra kết nối'; return; }
-  lines.push(user?ok('Đã đăng nhập: '+user.email):fail('Chưa đăng nhập'));
+    // 1. Auth
+    const authRes = await _withTO(sb.auth.getUser());
+    const user = authRes?.data?.user || null;
+    if(authRes?.error) lines.push(fail('Auth lỗi: '+authRes.error.message));
+    else lines.push(user ? ok('Đã đăng nhập: '+user.email) : fail('Chưa đăng nhập — hãy đăng nhập admin'));
 
-  // 2. Profile / role
-  if(user){
-    const {data:prof,error:pe}=await sb.from('profiles').select('role').eq('id',user.id).single();
-    if(pe)lines.push(fail('Profile lỗi: '+pe.message));
-    else lines.push(prof&&['super_admin','editor'].includes(prof.role)?ok('Role: '+prof.role):fail('Role không đủ quyền: '+(prof?.role||'?')));
-  }
-
-  // 3. Tables exist + read
-  for(const tbl of ['phrases','dialogues','dialogue_lines','levels','badges','categories','reading_lessons']){
-    const {count,error}=await sb.from(tbl).select('*',{count:'exact',head:true});
-    if(error){
-      if(tbl==='reading_lessons') lines.push(warn(`Bảng "reading_lessons": chưa tạo — chạy supabase-reading.sql`));
-      else lines.push(fail(`Bảng "${tbl}": ${error.message}`));
-    } else lines.push(ok(`Bảng "${tbl}": ${count} dòng`));
-  }
-
-  // 4. Kiểm tra anon đọc được categories không (giả lập index.html)
-  lines.push('<span style="color:var(--t2);font-weight:600;">── Kiểm tra quyền anon (index.html) ──</span>');
-  try {
-    const ac = new AbortController();
-    const tid = setTimeout(()=>ac.abort(), 8000);
-    const anonResp = await fetch(SB_URL+'/rest/v1/categories?select=id,key,label&limit=1', {
-      headers:{'apikey':SB_KEY,'Content-Type':'application/json'}, signal:ac.signal
-    });
-    clearTimeout(tid);
-    if(anonResp.ok){
-      lines.push(ok('Anon đọc categories → index.html nhận được danh mục ✓'));
-    } else {
-      lines.push(fail('Anon KHÔNG đọc được categories → index.html sẽ dùng danh mục mặc định'));
-      lines.push(warn('Nguyên nhân: thiếu RLS policy cho anon. Chạy SQL bên dưới để fix!'));
-      document.getElementById('fixCatBtn').style.display='inline-flex';
+    // 2. Profile / role
+    if(user){
+      const {data:prof,error:pe}=await _withTO(sb.from('profiles').select('role').eq('id',user.id).single());
+      if(pe) lines.push(fail('Profile lỗi: '+pe.message));
+      else lines.push(prof&&['super_admin','editor'].includes(prof.role)?ok('Role: '+prof.role):fail('Role không đủ quyền: '+(prof?.role||'?')));
     }
-  } catch(e){
-    lines.push(fail('Anon test lỗi: '+(e.name==='AbortError'?'timeout (8s)':e.message)));
-  }
-  const testRow={category:'__test__',group_name:'test',de:'test',vi:'test',sort_order:0};
-  const {data:ins,error:insErr}=await sb.from('phrases').insert(testRow).select().single();
-  if(insErr)lines.push(fail('Quyền INSERT phrases: '+insErr.message));
-  else{
-    lines.push(ok('Quyền INSERT phrases: OK'));
-    const {error:delErr}=await sb.from('phrases').delete().eq('id',ins.id);
-    lines.push(delErr?fail('Quyền DELETE phrases: '+delErr.message):ok('Quyền DELETE phrases: OK'));
-  }
 
-  // 5. Seed data check
-  const sd=window.SEED_DATA_OBJ;
-  if(!sd)lines.push(fail('window.SEED_DATA_OBJ: không tìm thấy (seed-data.js chưa load?)'));
-  else{
-    const cats=Object.keys(sd);
-    const total=cats.reduce((s,c)=>s+sd[c].reduce((a,g)=>a+g.i.length,0),0);
-    lines.push(ok(`Seed data: ${cats.length} danh mục, ${total} mục`));
-  }
-  const dialData=window.SEED_DIALOGUES;
-  lines.push(dialData?ok(`Seed dialogues: ${dialData.length} hội thoại`):fail('window.SEED_DIALOGUES: không tìm thấy'));
+    // 3. Tables exist + read
+    for(const tbl of ['phrases','dialogues','dialogue_lines','levels','badges','categories','reading_lessons']){
+      const {count,error}=await _withTO(sb.from(tbl).select('*',{count:'exact',head:true}));
+      if(error){
+        if(tbl==='reading_lessons') lines.push(warn('Bảng "reading_lessons": chưa tạo → chạy supabase-reading.sql'));
+        else lines.push(fail(`Bảng "${tbl}": ${error.message}`));
+      } else lines.push(ok(`Bảng "${tbl}": ${count} dòng`));
+    }
+
+    // 4. Anon read test
+    lines.push('<span style="color:var(--t2);font-weight:600;">── Quyền anon (index.html) ──</span>');
+    try {
+      const ac=new AbortController();
+      const tid=setTimeout(()=>ac.abort(),8000);
+      const r=await fetch(SB_URL+'/rest/v1/categories?select=id,key,label&limit=1',{headers:{'apikey':SB_KEY},signal:ac.signal});
+      clearTimeout(tid);
+      if(r.ok) lines.push(ok('Anon đọc categories OK'));
+      else { lines.push(fail('Anon KHÔNG đọc được categories')); document.getElementById('fixCatBtn').style.display='inline-flex'; }
+    } catch(e){ lines.push(fail('Anon test: '+(e.name==='AbortError'?'timeout 8s':e.message))); }
+
+    // 5. Write test
+    const testRow={category:'__test__',group_name:'test',de:'test',vi:'test',sort_order:0};
+    const {data:ins,error:ie}=await _withTO(sb.from('phrases').insert(testRow).select().single());
+    if(ie) lines.push(fail('Quyền INSERT: '+ie.message));
+    else{
+      lines.push(ok('Quyền INSERT OK'));
+      const {error:de}=await _withTO(sb.from('phrases').delete().eq('id',ins.id));
+      lines.push(de?fail('Quyền DELETE: '+de.message):ok('Quyền DELETE OK'));
+    }
+
+    // 6. Seed data
+    const sd=window.SEED_DATA_OBJ;
+    if(!sd) lines.push(fail('window.SEED_DATA_OBJ: không tìm thấy'));
+    else{ const t=Object.values(sd).reduce((s,c)=>s+c.reduce((a,g)=>a+g.i.length,0),0); lines.push(ok('Seed data: '+t+' mục')); }
+    lines.push(window.SEED_DIALOGUES?ok('Seed dialogues: '+window.SEED_DIALOGUES.length+' hội thoại'):fail('SEED_DIALOGUES: không tìm thấy'));
 
   } catch(e){
-    lines.push(fail('Lỗi không mong đợi: '+e.message));
+    lines.push(fail('⚠ '+e.message));
+    if(e.message.includes('Timeout')) lines.push(warn('→ Kiểm tra lại: project Supabase có thể bị <strong>tạm dừng</strong> (free tier). Vào <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--blue)">supabase.com/dashboard</a> → Resume project.'));
     console.error('[checkDB]', e);
   }
   setSeedResult('<div style="line-height:1.9;font-size:.79rem;">'+lines.join('<br>')+'</div>');
