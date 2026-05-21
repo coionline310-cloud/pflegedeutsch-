@@ -566,6 +566,66 @@ function speakDE(text){
   if(vs.length)u.voice=vs[0];
   window.speechSynthesis.speak(u);
 }
+
+// ── Word-by-word highlight TTS ────────────────────────────
+let _hl=null;
+function stopHighlight(){
+  window.speechSynthesis?.cancel();
+  if(!_hl)return;
+  const {el,btn,text}=_hl;
+  // Remove spans, restore plain text
+  if(el){el.querySelectorAll('.hl-w').forEach(w=>w.classList.remove('hl-active','hl-done'));}
+  if(btn){btn.innerHTML='▶ Nghe theo dõi';btn.classList.remove('hl-playing');}
+  _hl=null;
+}
+function speakHighlight(text,el,btn){
+  if(_hl&&_hl.el===el){stopHighlight();return;}
+  stopHighlight();
+  if(!window.speechSynthesis){speakDE(text);return;}
+  // Pre-compute word positions in text
+  const words=[];const re=/\S+/g;let m;
+  while((m=re.exec(text))!==null) words.push({s:m.index,e:m.index+m[0].length,w:m[0]});
+  // Render word spans
+  let html='',last=0;
+  words.forEach((wp,i)=>{html+=text.slice(last,wp.s);html+=`<span class="hl-w" data-i="${i}">${wp.w}</span>`;last=wp.e;});
+  html+=text.slice(last);
+  el.innerHTML=html;
+  const wEls=el.querySelectorAll('.hl-w');
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang='de-DE';u.rate=0.78;
+  const vs=window.speechSynthesis.getVoices().filter(v=>v.lang.startsWith('de'));
+  if(vs.length)u.voice=vs[0];
+  let cur=-1;
+  u.onboundary=e=>{
+    if(e.name!=='word')return;
+    const i=words.findIndex(wp=>e.charIndex>=wp.s&&e.charIndex<wp.e);
+    if(i<0||i===cur)return;
+    if(cur>=0)wEls[cur]?.classList.replace('hl-active','hl-done');
+    wEls[i]?.classList.add('hl-active');
+    cur=i;
+  };
+  u.onend=u.onerror=()=>{
+    wEls.forEach(w=>{w.classList.remove('hl-active');w.classList.add('hl-done');});
+    setTimeout(()=>wEls.forEach(w=>w.classList.remove('hl-done')),700);
+    if(btn){btn.innerHTML='▶ Nghe theo dõi';btn.classList.remove('hl-playing');}
+    if(_hl?.el===el)_hl=null;
+  };
+  if(btn){btn.innerHTML='⏸ Dừng';btn.classList.add('hl-playing');}
+  _hl={el,btn,text};
+  window.speechSynthesis.speak(u);
+}
+function speakHL(elId,text,btn){
+  const el=document.getElementById(elId);
+  if(!el){speakDE(text);return;}
+  speakHighlight(text,el,btn);
+}
+function getDriveEmbedUrl(url){
+  if(!url||!url.trim())return null;
+  // Extract Google Drive file ID from various URL formats
+  const m=url.match(/\/d\/([a-zA-Z0-9_-]{10,})/)||url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  if(m) return `https://drive.google.com/file/d/${m[1]}/preview`;
+  return url; // return as-is if not a Drive URL
+}
 function speakCurrentFC(cat,e){e.stopPropagation();const s=flashState[cat];if(s)speakDE(s.items[s.idx].de);}
 function speakCurrentTyping(cat){const s=typingState[cat];if(s)speakDE(s.items[s.idx].de);}
 
@@ -1192,19 +1252,26 @@ function rateSRS(q){
 // ════════════════════════════════════════════════════════
 function renderDialogues(){
   const el=document.getElementById('dialogue-list');
-  if(el.innerHTML)return;
-  el.innerHTML=DIALOGUES.map((d,i)=>`
-    <div class="dial-card" id="dial-${i}">
+  el.innerHTML=DIALOGUES.map((d,i)=>{
+    const embedUrl=getDriveEmbedUrl(d.audio_url);
+    const audioHtml=embedUrl?`<div class="dial-audio"><div class="dial-audio-lbl">🎙 Audio bản gốc</div><iframe src="${embedUrl}" class="dial-audio-frame" allow="autoplay" allowfullscreen></iframe></div>`:'';
+    const diffLabel=d.diff==='easy'?'Cơ bản':d.diff==='medium'?'Trung bình':'Nâng cao';
+    const lines=d.lines.map((l,j)=>{
+      const id=`dl-${i}-${j}`;
+      const av=l.role==='nurse'?'👩‍⚕️':l.role==='doctor'?'👨‍⚕️':'🧑‍🦱';
+      const deEsc=esc(l.de);
+      return `<div class="dial-line ${l.role}"><div class="dial-avatar">${av}</div><div><div class="dial-bubble"><div class="dial-de" id="${id}">${l.de}</div><div class="dial-vi">${l.vi}</div></div><button class="dial-speak" onclick="speakHL('${id}','${deEsc}',this)">▶ Nghe theo dõi</button></div></div>`;
+    }).join('');
+    return `<div class="dial-card" id="dial-${i}">
       <div class="dial-header" onclick="toggleDial(${i})">
         <div class="dial-icon">${d.icon}</div>
         <div class="dial-title">${d.title}</div>
-        <div class="dial-meta"><span class="diff-${d.diff}" style="padding:2px 7px;border-radius:20px;font-size:.65rem;font-weight:600;background:rgba(255,255,255,.06);">${d.diff==='easy'?'Cơ bản':d.diff==='medium'?'Trung bình':'Nâng cao'}</span></div>
+        <div class="dial-meta"><span class="diff-${d.diff}" style="padding:2px 7px;border-radius:20px;font-size:.65rem;font-weight:600;background:rgba(255,255,255,.06);">${diffLabel}</span></div>
         <div class="dial-arrow">›</div>
       </div>
-      <div class="dial-body">
-        ${d.lines.map((l,j)=>'<div class="dial-line '+l.role+'"><div class="dial-avatar">'+(l.role==='nurse'?'👩‍⚕️':'🧑‍🦱')+'</div><div><div class="dial-bubble"><div class="dial-de">'+l.de+'</div><div class="dial-vi">'+l.vi+'</div></div><button class="dial-speak" onclick="speakDE(\''+esc(l.de)+'\')">🔊 Nghe</button></div></div>').join('')}
-      </div>
-    </div>`).join('');
+      <div class="dial-body">${audioHtml}${lines}</div>
+    </div>`;
+  }).join('');
 }
 function toggleDial(i){
   const c=document.getElementById('dial-'+i);
@@ -2000,6 +2067,7 @@ if(!sessionStorage.getItem('_wXP')){
         title: row.title,
         icon: row.icon || '💬',
         diff: row.difficulty || 'easy',
+        audio_url: row.audio_url || null,
         lines: (row.dialogue_lines||[])
           .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
           .map(L=>({ role: L.role, de: L.de, vi: L.vi }))
@@ -2036,6 +2104,10 @@ if(!sessionStorage.getItem('_wXP')){
       const pg = p.id.replace(/^page-/, '');
       if(!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg)) p.innerHTML = '';
     });
+    // Clear dialogue list so renderDialogues() rebuilds with fresh Supabase data
+    const dlEl=document.getElementById('dialogue-list');
+    if(dlEl) dlEl.innerHTML='';
+    stopHighlight();
     Object.keys(flashState).forEach(k=>delete flashState[k]);
     recomputeCounts();
     updateXPUI();

@@ -594,6 +594,7 @@ function openDialogueModal(id=null){
     document.getElementById('dm-icon').value  = d.icon||'💬';
     document.getElementById('dm-diff').value  = d.difficulty||'easy';
     document.getElementById('dm-sort').value  = d.sort_order||0;
+    document.getElementById('dm-audio').value = d.audio_url||'';
     const lines = (d.dialogue_lines||[]).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
     lines.forEach(l=>addLineRow(l));
   } else {
@@ -601,6 +602,7 @@ function openDialogueModal(id=null){
     document.getElementById('dm-icon').value='💬';
     document.getElementById('dm-diff').value='easy';
     document.getElementById('dm-sort').value='0';
+    document.getElementById('dm-audio').value='';
     document.getElementById('linesEditor').innerHTML='';
     addLineRow(); addLineRow();
   }
@@ -649,6 +651,7 @@ async function saveDialogue(){
   const icon  = document.getElementById('dm-icon').value.trim()||'💬';
   const diff  = document.getElementById('dm-diff').value;
   const sort  = parseInt(document.getElementById('dm-sort').value)||0;
+  const audioUrl = document.getElementById('dm-audio').value.trim()||null;
   const errEl = document.getElementById('dialogueModalErr');
   errEl.style.display='none';
   if(!title){errEl.textContent='Vui lòng nhập tiêu đề.';errEl.style.display='block';return;}
@@ -665,12 +668,12 @@ async function saveDialogue(){
   btn.disabled=true;btn.textContent='Đang lưu...';
   let dialId=editDialogueId;
   if(dialId){
-    const {error}=await sb.from('dialogues').update({title,icon,difficulty:diff,sort_order:sort}).eq('id',dialId);
+    const {error}=await sb.from('dialogues').update({title,icon,difficulty:diff,sort_order:sort,audio_url:audioUrl}).eq('id',dialId);
     if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Lưu';return;}
     // Delete old lines, re-insert
     await sb.from('dialogue_lines').delete().eq('dialogue_id',dialId);
   } else {
-    const {data,error}=await sb.from('dialogues').insert({title,icon,difficulty:diff,sort_order:sort}).select().single();
+    const {data,error}=await sb.from('dialogues').insert({title,icon,difficulty:diff,sort_order:sort,audio_url:audioUrl}).select().single();
     if(error){errEl.textContent='Lỗi: '+error.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Lưu';return;}
     dialId=data.id;
   }
