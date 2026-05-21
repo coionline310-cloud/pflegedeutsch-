@@ -1208,6 +1208,86 @@ function parseCSVLine(line){
 // ══════════════════════════════════════════════════════════
 let _rlData = [];
 let _rlEditId = null;
+let _rlSelectedFile = null;
+let _rlTimestamps = [];
+let _whisperPipeline = null;
+
+function onRLFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  _rlSelectedFile = file;
+  _rlTimestamps = [];
+  const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+  document.getElementById('rl-file-name').textContent = `${file.name} (${sizeMB} MB)`;
+  const btn = document.getElementById('rl-transcribe-btn');
+  btn.style.display = 'block';
+  btn.textContent = '🎙 Phiên âm tự động với Whisper.js';
+  btn.disabled = false;
+  const status = document.getElementById('rl-transcribe-status');
+  status.style.display = 'none';
+}
+
+async function transcribeRL() {
+  if (!_rlSelectedFile) return;
+  const btn = document.getElementById('rl-transcribe-btn');
+  const status = document.getElementById('rl-transcribe-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang tải model...';
+  status.style.display = 'block';
+  status.style.color = 'var(--t2)';
+  status.textContent = 'Đang tải Whisper.js từ CDN (lần đầu ~244 MB — sẽ cache lại)...';
+  try {
+    const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+    env.allowLocalModels = false;
+    if (!_whisperPipeline) {
+      status.textContent = 'Đang tải Whisper small model (lần đầu có thể mất 1-2 phút)...';
+      _whisperPipeline = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
+        progress_callback: (p) => {
+          if (p.status === 'progress') {
+            const pct = Math.round(p.progress || 0);
+            status.textContent = `Đang tải: ${p.file || ''} — ${pct}%`;
+          }
+        }
+      });
+    }
+    status.textContent = '⏳ Đang phiên âm... (có thể mất vài phút tuỳ độ dài audio)';
+    btn.textContent = '⏳ Đang phiên âm...';
+    const blobUrl = URL.createObjectURL(_rlSelectedFile);
+    let result;
+    try {
+      result = await _whisperPipeline(blobUrl, {
+        language: 'german',
+        return_timestamps: 'word',
+        chunk_length_s: 30,
+      });
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
+    const fullText = (result.text || '').trim();
+    document.getElementById('rl-de').value = fullText;
+    if (Array.isArray(result.chunks)) {
+      _rlTimestamps = result.chunks
+        .filter(c => c.timestamp && c.timestamp[0] != null)
+        .map(c => ({
+          word: (c.text || '').trim(),
+          start: c.timestamp[0],
+          end: c.timestamp[1] != null ? c.timestamp[1] : c.timestamp[0] + 0.4
+        }))
+        .filter(w => w.word.length > 0);
+    }
+    const wCount = _rlTimestamps.length;
+    status.style.color = 'var(--green)';
+    status.textContent = `✓ Phiên âm xong! ${wCount} từ có timestamp · Nhấn Lưu để hoàn tất.`;
+    btn.textContent = '🔄 Phiên âm lại';
+    btn.disabled = false;
+  } catch (e) {
+    status.style.color = 'var(--red)';
+    status.textContent = 'Lỗi phiên âm: ' + (e.message || String(e));
+    btn.textContent = '🎙 Phiên âm tự động với Whisper.js';
+    btn.disabled = false;
+    console.error('[whisper]', e);
+  }
+}
 
 async function loadReadingLessons(){
   const {data, error} = await sb.from('reading_lessons').select('*').order('sort_order').order('id');
@@ -1239,7 +1319,7 @@ function renderReadingLessonsAdmin(){
         <td style="font-size:1.2rem">${r.icon||'🎧'}</td>
         <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title}</td>
         <td><span class="diff-${r.difficulty||'easy'}" style="display:inline-block;font-size:.63rem;font-weight:700;padding:2px 7px;border-radius:8px">${diffLabel[r.difficulty]||r.difficulty}</span></td>
-        <td>${r.audio_url?'<span style="color:var(--teal);font-size:.75rem">🎙 Có</span>':'<span style="color:var(--t4);font-size:.75rem">—</span>'}</td>
+        <td>${r.audio_path ? (Array.isArray(r.word_timestamps)&&r.word_timestamps.length ? `<span style="color:var(--teal);font-size:.72rem">🎵 Karaoke·${r.word_timestamps.length}từ</span>` : '<span style="color:var(--yellow);font-size:.72rem">🎵 Storage</span>') : (r.audio_url ? '<span style="color:var(--t2);font-size:.75rem">🔗 Drive</span>' : '<span style="color:var(--t4);font-size:.75rem">—</span>')}</td>
         <td style="color:var(--t3)">${r.sort_order}</td>
         <td>
           <button class="btn btn-blue btn-sm" onclick="openRLModal(${r.id})">✏️</button>
@@ -1252,6 +1332,8 @@ function renderReadingLessonsAdmin(){
 
 function openRLModal(id=null){
   _rlEditId = id;
+  _rlSelectedFile = null;
+  _rlTimestamps = [];
   const r = id ? _rlData.find(x=>x.id===id) : null;
   document.getElementById('rlModalTitle').textContent = id ? 'Sửa bài Karaoke Nghe' : 'Thêm bài Karaoke Nghe';
   document.getElementById('rl-title').value   = r?.title || '';
@@ -1261,6 +1343,28 @@ function openRLModal(id=null){
   document.getElementById('rl-vi').value      = r?.vi_text || '';
   document.getElementById('rl-audio').value   = r?.audio_url || '';
   document.getElementById('rl-sort').value    = r?.sort_order ?? 0;
+  // Reset upload UI
+  document.getElementById('rl-file-name').textContent = 'Chưa chọn file';
+  const transcribeBtn = document.getElementById('rl-transcribe-btn');
+  transcribeBtn.style.display = 'none';
+  transcribeBtn.disabled = false;
+  transcribeBtn.textContent = '🎙 Phiên âm tự động với Whisper.js';
+  const transcribeStatus = document.getElementById('rl-transcribe-status');
+  transcribeStatus.style.display = 'none';
+  const fileInput = document.getElementById('rl-audio-file');
+  if (fileInput) fileInput.value = '';
+  // Show existing Storage audio info
+  const existingAudio = document.getElementById('rl-existing-audio');
+  if (r?.audio_path) {
+    const fileName = r.audio_path.split('/').pop();
+    const wc = Array.isArray(r.word_timestamps) ? r.word_timestamps.length : 0;
+    existingAudio.style.display = 'block';
+    existingAudio.innerHTML = wc > 0
+      ? `🎵 Storage audio: <code>${fileName}</code> · <span style="color:var(--green)">${wc} từ có timestamp</span>`
+      : `🎵 Storage audio: <code>${fileName}</code> · <span style="color:var(--yellow)">Chưa có timestamp — Phiên âm để sync</span>`;
+  } else {
+    existingAudio.style.display = 'none';
+  }
   document.getElementById('rlModal').style.display = 'flex';
   setTimeout(()=>document.getElementById('rl-title').focus(), 80);
 }
@@ -1276,6 +1380,30 @@ async function saveRL(){
   if(!de_text){ toast('Vui lòng nhập nội dung tiếng Đức'); return; }
   const btn = document.getElementById('rlSaveBtn');
   btn.disabled = true; btn.textContent = 'Đang lưu...';
+  // Carry over existing audio_path / word_timestamps from DB record
+  const existing = _rlEditId ? _rlData.find(x=>x.id===_rlEditId) : null;
+  let audio_path = existing?.audio_path || null;
+  let word_timestamps = existing?.word_timestamps || [];
+  // Upload new audio file to Supabase Storage if selected
+  if (_rlSelectedFile) {
+    btn.textContent = 'Đang upload audio...';
+    const ext = (_rlSelectedFile.name.split('.').pop() || 'mp3').toLowerCase();
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+    const { data: upData, error: upErr } = await sb.storage
+      .from('karaoke-audio')
+      .upload(fileName, _rlSelectedFile, { contentType: _rlSelectedFile.type, upsert: false });
+    if (upErr) {
+      toast('Lỗi upload audio: ' + upErr.message + (upErr.message.includes('bucket') ? ' — Chạy supabase-karaoke.sql trước!' : ''), true);
+      btn.disabled = false; btn.textContent = 'Lưu';
+      return;
+    }
+    audio_path = upData.path;
+    btn.textContent = 'Đang lưu...';
+  }
+  // Use freshly transcribed timestamps if available
+  if (_rlTimestamps.length > 0) {
+    word_timestamps = _rlTimestamps;
+  }
   const payload = {
     title,
     icon: document.getElementById('rl-icon').value.trim() || '🎧',
@@ -1283,6 +1411,8 @@ async function saveRL(){
     de_text,
     vi_text: document.getElementById('rl-vi').value.trim(),
     audio_url: document.getElementById('rl-audio').value.trim() || null,
+    audio_path: audio_path || null,
+    word_timestamps,
     sort_order: parseInt(document.getElementById('rl-sort').value)||0,
   };
   let error;
@@ -1292,7 +1422,13 @@ async function saveRL(){
     ({error} = await sb.from('reading_lessons').insert(payload));
   }
   btn.disabled = false; btn.textContent = 'Lưu';
-  if(error){ toast('Lỗi: ' + error.message); return; }
+  if(error){
+    let msg = error.message || '';
+    if(msg.includes('audio_path') || msg.includes('word_timestamps'))
+      msg += ' — Chạy supabase-karaoke.sql trong SQL Editor để thêm các cột mới!';
+    toast('Lỗi: ' + msg, true);
+    return;
+  }
   toast(_rlEditId ? '✓ Đã cập nhật bài' : '✓ Đã thêm bài mới');
   closeRLModal();
   await loadReadingLessons();

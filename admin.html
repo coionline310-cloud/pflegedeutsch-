@@ -166,7 +166,7 @@
   <!-- ══ KARAOKE NGHE ══ -->
   <div class="adm-panel" id="panel-reading">
     <div class="ph">
-      <div class="ph-left"><div class="pt">🎧 Karaoke Luyện Nghe</div><div class="ps">Quản lý bài luyện nghe với audio Drive và tô đậm từng chữ</div></div>
+      <div class="ph-left"><div class="pt">🎧 Karaoke Luyện Nghe</div><div class="ps">Upload audio → Phiên âm Whisper → Tô sáng từng chữ theo thời gian thực</div></div>
       <button class="btn btn-green" onclick="openRLModal()">＋ Thêm bài</button>
     </div>
     <div id="readingList">
@@ -209,7 +209,18 @@
           <textarea class="finp" id="rl-vi" rows="3" placeholder="Bản dịch (tuỳ chọn)"></textarea>
         </div>
         <div class="frow">
-          <label class="flbl">🎙 Google Drive Audio URL <span style="color:var(--t3);font-weight:400;">(tuỳ chọn)</span></label>
+          <label class="flbl">🎵 Upload Audio (Supabase Storage · Whisper sync)</label>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+            <button class="btn btn-gray" type="button" onclick="document.getElementById('rl-audio-file').click()" style="flex-shrink:0;font-size:.78rem;padding:5px 12px;">📁 Chọn file audio</button>
+            <span id="rl-file-name" style="font-size:.75rem;color:var(--t2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Chưa chọn file</span>
+            <input type="file" id="rl-audio-file" accept="audio/*" style="display:none" onchange="onRLFileSelect(this)">
+          </div>
+          <div id="rl-existing-audio" style="display:none;font-size:.71rem;color:var(--teal);margin-bottom:4px;line-height:1.5;"></div>
+          <button class="btn btn-blue" id="rl-transcribe-btn" onclick="transcribeRL()" style="display:none;width:100%;font-size:.8rem;margin-bottom:4px;">🎙 Phiên âm tự động với Whisper.js</button>
+          <div id="rl-transcribe-status" style="font-size:.71rem;color:var(--t2);line-height:1.5;display:none;padding:4px 0;"></div>
+        </div>
+        <div class="frow">
+          <label class="flbl">🔗 Google Drive URL <span style="color:var(--t3);font-weight:400;">(tuỳ chọn — dùng khi không upload Storage)</span></label>
           <input class="finp" id="rl-audio" type="url" placeholder="https://drive.google.com/file/d/FILE_ID/view">
           <div style="font-size:.67rem;color:var(--t3);margin-top:3px;">Drive → Share → Anyone with link → Copy link</div>
         </div>

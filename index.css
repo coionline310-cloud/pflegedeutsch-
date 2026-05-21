@@ -637,6 +637,58 @@ kbd{background:var(--s4);border:1px solid var(--b2);border-radius:4px;padding:1p
 .rl-nav-btn:hover{background:var(--b3);color:var(--tx);}
 .rl-nav-count{font-size:.75rem;color:var(--t3);}
 
+/* ── Karaoke badge on card list ── */
+.rl-has-karaoke{background:rgba(37,203,168,.2);color:var(--teal);}
+
+/* ── Karaoke mode player ── */
+.rl-karaoke-mode{display:flex;flex-direction:column;}
+.rl-karaoke-text{
+  font-size:1.05rem;line-height:2.1;color:var(--tx);
+  font-family:var(--serif);padding:1.2rem 1.2rem 1rem;
+  overflow-y:auto;max-height:56vh;
+}
+.rl-karaoke-text .hl-w{
+  cursor:default;border-radius:3px;padding:0 1px;
+  transition:background .08s,color .08s,font-weight .06s;
+}
+.rl-karaoke-text .hl-active{
+  background:rgba(37,203,168,.25);color:var(--teal)!important;
+  font-weight:700;padding:2px 5px;border-radius:5px;
+}
+.rl-karaoke-text .hl-done{color:var(--t3)!important;}
+.rl-vi-karaoke{
+  font-size:.82rem;line-height:1.7;color:var(--t2);font-style:italic;
+  padding:.6rem 1.2rem;border-top:1px solid var(--b1);
+}
+
+/* ── Karaoke bottom player bar ── */
+.rl-karaoke-bar{
+  display:flex;align-items:center;gap:10px;
+  padding:.7rem 1rem;border-top:1px solid var(--b1);
+  background:var(--s2);position:sticky;bottom:0;
+}
+.rl-kb-play{
+  width:40px;height:40px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--teal),var(--blue2));
+  border:none;color:#fff;font-size:1.1rem;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .14s;
+}
+.rl-kb-play:hover{opacity:.85;transform:scale(1.06);}
+.rl-kb-progress{
+  flex:1;height:6px;background:var(--b2);
+  border-radius:3px;cursor:pointer;position:relative;overflow:hidden;
+}
+.rl-kb-fill{
+  height:100%;
+  background:linear-gradient(90deg,var(--teal),var(--blue2));
+  border-radius:3px;width:0%;transition:width .12s linear;
+}
+.rl-kb-time{
+  font-size:.72rem;color:var(--t3);
+  white-space:nowrap;flex-shrink:0;min-width:82px;text-align:right;
+}
+
 /* ══ MOBILE BOTTOM NAV ════════════════════════════════════ */
 .bottom-nav{
   display:none;

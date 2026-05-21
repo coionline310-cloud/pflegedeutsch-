@@ -1263,7 +1263,7 @@ function _renderRLList(){
       <div class="rl-card-body">
         <div class="rl-card-title">${l.title}</div>
         <div class="rl-card-de">${(l.de_text||'').slice(0,85)}${(l.de_text||'').length>85?'…':''}</div>
-        ${l.audio_url?'<span class="rl-has-audio">🎙 Audio Drive</span>':''}
+        ${l.audio_path && Array.isArray(l.word_timestamps) && l.word_timestamps.length ? '<span class="rl-has-audio rl-has-karaoke">🎵 Karaoke</span>' : (l.audio_url ? '<span class="rl-has-audio">🎙 Audio Drive</span>' : '')}
       </div>
       <div class="rl-diff diff-${l.difficulty||'easy'}">${l.difficulty==='hard'?'Nâng cao':l.difficulty==='medium'?'Trung bình':'Cơ bản'}</div>
     </div>`).join('')+`</div>`;
@@ -1318,7 +1318,6 @@ function openReadingLesson(i){
   if(!l) return;
   stopHighlight();
   const el=document.getElementById('reading-main');
-  const embedUrl=getDriveEmbedUrl(l.audio_url);
   const diff=l.difficulty==='hard'?'Nâng cao':l.difficulty==='medium'?'Trung bình':'Cơ bản';
   const navRow=READING_LESSONS.length>1?`
     <div class="rl-nav-row">
@@ -1326,32 +1325,136 @@ function openReadingLesson(i){
       <span class="rl-nav-count">${i+1} / ${READING_LESSONS.length}</span>
       ${i<READING_LESSONS.length-1?`<button class="rl-nav-btn" onclick="openReadingLesson(${i+1})">Bài tiếp →</button>`:'<span></span>'}
     </div>`:'';
-  el.innerHTML=`
-    <div class="rl-player">
-      <div class="rl-player-hdr">
-        <button class="rl-back-btn" onclick="renderReadingLessons()">← Danh sách</button>
-        <div class="rl-player-meta">
-          <div class="rl-player-title">${l.title}</div>
-          <span class="rl-diff diff-${l.difficulty||'easy'}">${diff}</span>
+  const wts=Array.isArray(l.word_timestamps)?l.word_timestamps:[];
+  const hasRealSync=!!(l.audio_path&&wts.length>0);
+  if(hasRealSync){
+    // ── Karaoke mode: Supabase Storage audio + Whisper word timestamps ──
+    const SB_URL=window.SUPABASE_URL;
+    const audioUrl=`${SB_URL}/storage/v1/object/public/karaoke-audio/${l.audio_path}`;
+    let html='';
+    for(let j=0;j<wts.length;j++){
+      const w=wts[j];
+      const word=(w.word||'').trim();
+      if(!word) continue;
+      const safeWord=word.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+      const needSpace=j>0&&!/^[.,!?;:)»\-]/.test(word);
+      if(needSpace) html+=' ';
+      html+=`<span class="hl-w" data-s="${w.start??0}" data-e="${w.end??''}">${safeWord}</span>`;
+    }
+    el.innerHTML=`
+      <div class="rl-player rl-karaoke-mode">
+        <div class="rl-player-hdr">
+          <button class="rl-back-btn" onclick="renderReadingLessons()">← Danh sách</button>
+          <div class="rl-player-meta">
+            <div class="rl-player-title">${l.title}</div>
+            <span class="rl-diff diff-${l.difficulty||'easy'}">${diff}</span>
+          </div>
         </div>
-      </div>
-      ${embedUrl?`<div class="rl-audio-wrap">
-        <div class="rl-audio-lbl">🎙 Nghe audio gốc (Google Drive)</div>
-        <iframe src="${embedUrl}" class="rl-audio-frame" allow="autoplay" allowfullscreen></iframe>
-      </div>`:''}
-      <div class="rl-text-box">
-        <div class="rl-de" id="rl-de-text">${_rlWrapWords(l.de_text)}</div>
-        ${l.vi_text?`<div class="rl-vi">${l.vi_text}</div>`:''}
-      </div>
-      <div class="rl-controls">
-        <button class="rl-play-btn" id="rl-play-btn" onclick="toggleRLPlay()">▶ Tô đậm từng chữ</button>
-        <div class="rl-rates">
-          <span class="rl-rate-lbl">Tốc độ:</span>
-          ${[0.6,0.8,1.0].map(r=>`<button class="rl-rate-btn${_rlRate===r?' active':''}" onclick="setRLRate(${r},this)">×${r}</button>`).join('')}
+        <div class="rl-karaoke-text" id="rl-de-text">${html}</div>
+        ${l.vi_text?`<div class="rl-vi-karaoke">${l.vi_text.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>`:''}
+        ${navRow}
+        <audio id="rl-audio-el" src="${audioUrl}" preload="auto"></audio>
+        <div class="rl-karaoke-bar">
+          <button class="rl-kb-play" id="rl-kb-play" onclick="toggleRLKaraoke()">▶</button>
+          <div class="rl-kb-progress" onclick="seekRL(event)">
+            <div class="rl-kb-fill" id="rl-kb-fill"></div>
+          </div>
+          <span class="rl-kb-time" id="rl-kb-time">0:00 / 0:00</span>
         </div>
-      </div>
-      ${navRow}
-    </div>`;
+      </div>`;
+    _rlSetupRealSync(document.getElementById('rl-audio-el'),wts);
+  } else {
+    // ── Fallback: Drive iframe + TTS word highlight ──
+    const embedUrl=getDriveEmbedUrl(l.audio_url);
+    el.innerHTML=`
+      <div class="rl-player">
+        <div class="rl-player-hdr">
+          <button class="rl-back-btn" onclick="renderReadingLessons()">← Danh sách</button>
+          <div class="rl-player-meta">
+            <div class="rl-player-title">${l.title}</div>
+            <span class="rl-diff diff-${l.difficulty||'easy'}">${diff}</span>
+          </div>
+        </div>
+        ${embedUrl?`<div class="rl-audio-wrap">
+          <div class="rl-audio-lbl">🎙 Nghe audio gốc (Google Drive)</div>
+          <iframe src="${embedUrl}" class="rl-audio-frame" allow="autoplay" allowfullscreen></iframe>
+        </div>`:''}
+        <div class="rl-text-box">
+          <div class="rl-de" id="rl-de-text">${_rlWrapWords(l.de_text)}</div>
+          ${l.vi_text?`<div class="rl-vi">${l.vi_text}</div>`:''}
+        </div>
+        <div class="rl-controls">
+          <button class="rl-play-btn" id="rl-play-btn" onclick="toggleRLPlay()">▶ Tô đậm từng chữ</button>
+          <div class="rl-rates">
+            <span class="rl-rate-lbl">Tốc độ:</span>
+            ${[0.6,0.8,1.0].map(r=>`<button class="rl-rate-btn${_rlRate===r?' active':''}" onclick="setRLRate(${r},this)">×${r}</button>`).join('')}
+          </div>
+        </div>
+        ${navRow}
+      </div>`;
+  }
+}
+
+// ── Real-time sync: timeupdate → word highlight ───────────
+function _rlSetupRealSync(audio,wts){
+  if(!audio||!wts||!wts.length) return;
+  let lastIdx=-1;
+  function updateHL(){
+    const t=audio.currentTime;
+    const wEls=document.querySelectorAll('#rl-de-text .hl-w');
+    if(!wEls.length) return;
+    let newIdx=-1;
+    for(let i=0;i<wts.length;i++){
+      const w=wts[i];
+      if(t>=w.start&&t<(w.end??w.start+0.4)){newIdx=i;break;}
+    }
+    if(newIdx!==lastIdx){
+      if(lastIdx>=0&&wEls[lastIdx]){wEls[lastIdx].classList.remove('hl-active');wEls[lastIdx].classList.add('hl-done');}
+      if(newIdx>=0&&wEls[newIdx]){wEls[newIdx].classList.remove('hl-done');wEls[newIdx].classList.add('hl-active');wEls[newIdx].scrollIntoView({behavior:'smooth',block:'nearest'});}
+      lastIdx=newIdx;
+    }
+    const fill=document.getElementById('rl-kb-fill');
+    const timeEl=document.getElementById('rl-kb-time');
+    if(fill&&audio.duration>0) fill.style.width=(t/audio.duration*100)+'%';
+    if(timeEl) timeEl.textContent=_rlFmtTime(t)+' / '+_rlFmtTime(audio.duration||0);
+  }
+  audio.addEventListener('timeupdate',updateHL);
+  audio.addEventListener('play',()=>{const b=document.getElementById('rl-kb-play');if(b)b.textContent='⏸';});
+  audio.addEventListener('pause',()=>{const b=document.getElementById('rl-kb-play');if(b)b.textContent='▶';});
+  audio.addEventListener('ended',()=>{
+    const b=document.getElementById('rl-kb-play');if(b)b.textContent='▶';
+    document.querySelectorAll('#rl-de-text .hl-w').forEach(w=>w.classList.remove('hl-active','hl-done'));
+    lastIdx=-1;
+  });
+  audio.addEventListener('seeked',()=>{
+    const t=audio.currentTime;
+    const wEls=document.querySelectorAll('#rl-de-text .hl-w');
+    wts.forEach((w,i)=>{
+      if(wEls[i]){
+        if((w.end??w.start+0.4)<=t){wEls[i].classList.add('hl-done');wEls[i].classList.remove('hl-active');}
+        else{wEls[i].classList.remove('hl-done','hl-active');}
+      }
+    });
+    lastIdx=-1;
+  });
+}
+function _rlFmtTime(s){
+  if(!isFinite(s)||s<0) return '0:00';
+  const m=Math.floor(s/60),ss=Math.floor(s%60);
+  return m+':'+(ss<10?'0':'')+ss;
+}
+function toggleRLKaraoke(){
+  const audio=document.getElementById('rl-audio-el');
+  if(!audio){toggleRLPlay();return;}
+  if(audio.paused){audio.play().catch(e=>{if(!e.message?.includes('interrupted')&&e.name!=='AbortError')console.warn('[audio]',e);});}
+  else audio.pause();
+}
+function seekRL(event){
+  const audio=document.getElementById('rl-audio-el');
+  if(!audio||!audio.duration) return;
+  const rect=event.currentTarget.getBoundingClientRect();
+  const pct=Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width));
+  audio.currentTime=pct*audio.duration;
 }
 
 function toggleRLPlay(){
