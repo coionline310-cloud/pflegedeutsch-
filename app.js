@@ -2190,11 +2190,14 @@ if(!sessionStorage.getItem('_wXP')){
     // Xóa cache trang đã render để ensurePage() dựng lại với DATA mới
     document.querySelectorAll('.page').forEach(p=>{
       const pg = p.id.replace(/^page-/, '');
-      if(!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg)) p.innerHTML = '';
+      if(!['dashboard','exercise','dialogue','srs','roleplay','reading'].includes(pg)) p.innerHTML = '';
     });
     // Clear dialogue list so renderDialogues() rebuilds with fresh Supabase data
     const dlEl=document.getElementById('dialogue-list');
     if(dlEl) dlEl.innerHTML='';
+    // Clear reading-main so renderReadingLessons() rebuilds with fresh data
+    const rlEl=document.getElementById('reading-main');
+    if(rlEl) rlEl.innerHTML='';
     stopHighlight();
     Object.keys(flashState).forEach(k=>delete flashState[k]);
     recomputeCounts();
