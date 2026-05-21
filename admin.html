@@ -52,7 +52,6 @@
     <div class="nav-it" data-panel="phrases" style="--tc:var(--teal)" onclick="showPanel('phrases')"><span class="nav-ic">💬</span>Từ vựng & Cụm từ</div>
     <div class="nav-it" data-panel="categories" style="--tc:var(--orange)" onclick="showPanel('categories')"><span class="nav-ic">🗂️</span>Danh mục</div>
     <div class="nav-it" data-panel="dialogues" style="--tc:var(--purple)" onclick="showPanel('dialogues')"><span class="nav-ic">🗣️</span>Hội thoại</div>
-    <div class="nav-it" data-panel="reading" style="--tc:var(--teal)" onclick="showPanel('reading')"><span class="nav-ic">🎧</span>Karaoke Nghe</div>
     <div class="nav-sec">Hệ thống</div>
     <div class="nav-it" data-panel="levels" style="--tc:var(--yellow)" onclick="showPanel('levels')"><span class="nav-ic">⭐</span>Levels</div>
     <div class="nav-it" data-panel="badges" style="--tc:var(--purple)" onclick="showPanel('badges')"><span class="nav-ic">🏅</span>Badges</div>
@@ -79,7 +78,6 @@
       <div class="stat-card"><div class="stat-num" id="st-phrases">—</div><div class="stat-lbl">Từ vựng/Cụm từ</div></div>
       <div class="stat-card"><div class="stat-num" id="st-dialogues">—</div><div class="stat-lbl">Hội thoại</div></div>
       <div class="stat-card"><div class="stat-num" id="st-lines">—</div><div class="stat-lbl">Dòng hội thoại</div></div>
-      <div class="stat-card"><div class="stat-num" id="st-reading">—</div><div class="stat-lbl">Bài Karaoke Nghe</div></div>
       <div class="stat-card"><div class="stat-num" id="st-levels">—</div><div class="stat-lbl">Levels</div></div>
       <div class="stat-card"><div class="stat-num" id="st-badges">—</div><div class="stat-lbl">Badges</div></div>
       <div class="stat-card"><div class="stat-num" id="st-users">—</div><div class="stat-lbl">Người dùng</div></div>
@@ -160,79 +158,6 @@
     </div>
     <div id="dialoguesList">
       <div class="loading"><span class="spin"></span>Đang tải...</div>
-    </div>
-  </div>
-
-  <!-- ══ KARAOKE NGHE ══ -->
-  <div class="adm-panel" id="panel-reading">
-    <div class="ph">
-      <div class="ph-left"><div class="pt">🎧 Karaoke Luyện Nghe</div><div class="ps">Upload audio → Phiên âm Whisper → Tô sáng từng chữ theo thời gian thực</div></div>
-      <button class="btn btn-green" onclick="openRLModal()">＋ Thêm bài</button>
-    </div>
-    <div id="readingList">
-      <div class="loading"><span class="spin"></span>Đang tải...</div>
-    </div>
-  </div>
-
-  <!-- Reading Lesson Modal -->
-  <div class="overlay" id="rlModal" style="display:none" onclick="if(event.target===this)closeRLModal()">
-    <div class="modal" style="max-width:560px" onclick="event.stopPropagation()">
-      <div class="modal-hdr">
-        <div class="modal-title" id="rlModalTitle">Thêm bài Karaoke Nghe</div>
-        <button class="modal-close" onclick="closeRLModal()">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="frow">
-          <label class="flbl">Tiêu đề bài <span class="req">*</span></label>
-          <input class="finp" id="rl-title" type="text" placeholder="VD: Chào hỏi bệnh nhân">
-        </div>
-        <div class="frow" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div>
-            <label class="flbl">Icon</label>
-            <input class="finp" id="rl-icon" type="text" placeholder="🎧" maxlength="4">
-          </div>
-          <div>
-            <label class="flbl">Độ khó</label>
-            <select class="finp" id="rl-difficulty">
-              <option value="easy">Cơ bản</option>
-              <option value="medium">Trung bình</option>
-              <option value="hard">Nâng cao</option>
-            </select>
-          </div>
-        </div>
-        <div class="frow">
-          <label class="flbl">Nội dung tiếng Đức <span class="req">*</span></label>
-          <textarea class="finp" id="rl-de" rows="4" placeholder="Nhập câu / đoạn văn tiếng Đức..."></textarea>
-        </div>
-        <div class="frow">
-          <label class="flbl">Bản dịch tiếng Việt</label>
-          <textarea class="finp" id="rl-vi" rows="3" placeholder="Bản dịch (tuỳ chọn)"></textarea>
-        </div>
-        <div class="frow">
-          <label class="flbl">🎵 Upload Audio (Supabase Storage · Whisper sync)</label>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
-            <button class="btn btn-gray" type="button" onclick="document.getElementById('rl-audio-file').click()" style="flex-shrink:0;font-size:.78rem;padding:5px 12px;">📁 Chọn file audio</button>
-            <span id="rl-file-name" style="font-size:.75rem;color:var(--t2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Chưa chọn file</span>
-            <input type="file" id="rl-audio-file" accept="audio/*" style="display:none" onchange="onRLFileSelect(this)">
-          </div>
-          <div id="rl-existing-audio" style="display:none;font-size:.71rem;color:var(--teal);margin-bottom:4px;line-height:1.5;"></div>
-          <button class="btn btn-blue" id="rl-transcribe-btn" onclick="transcribeRL()" style="display:none;width:100%;font-size:.8rem;margin-bottom:4px;">🎙 Phiên âm tự động với Whisper.js</button>
-          <div id="rl-transcribe-status" style="font-size:.71rem;color:var(--t2);line-height:1.5;display:none;padding:4px 0;"></div>
-        </div>
-        <div class="frow">
-          <label class="flbl">🔗 Google Drive URL <span style="color:var(--t3);font-weight:400;">(tuỳ chọn — dùng khi không upload Storage)</span></label>
-          <input class="finp" id="rl-audio" type="url" placeholder="https://drive.google.com/file/d/FILE_ID/view">
-          <div style="font-size:.67rem;color:var(--t3);margin-top:3px;">Drive → Share → Anyone with link → Copy link</div>
-        </div>
-        <div class="frow">
-          <label class="flbl">Thứ tự</label>
-          <input class="finp" id="rl-sort" type="number" value="0" min="0">
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn btn-gray" onclick="closeRLModal()">Huỷ</button>
-        <button class="btn btn-green" id="rlSaveBtn" onclick="saveRL()">Lưu</button>
-      </div>
     </div>
   </div>
 
