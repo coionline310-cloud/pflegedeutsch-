@@ -1273,34 +1273,35 @@ async function renderReadingLessons(){
   if(!el)return;
   stopHighlight();
   if(READING_LESSONS.length){_renderRLList();return;}
-  // Try live fetch if sbLive is available (handles RLS/timing issues)
-  const sb=window.sbLive;
-  if(!sb){
+  const SB_URL=window.SUPABASE_URL, SB_KEY=window.SUPABASE_ANON_KEY;
+  if(!SB_URL||!SB_KEY||SB_URL.includes('YOUR-PROJECT')){
     el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">🎧</div><div>Chưa có bài luyện nghe nào.<br>Thêm bài mới trong <a href="admin.html" style="color:var(--teal)">Admin → Karaoke Nghe</a>.</div></div>`;
     return;
   }
   el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic" style="font-size:1.4rem">⏳</div><div>Đang tải...</div></div>`;
-  let rl;
   try {
-    rl = await Promise.race([
-      sb.from('reading_lessons').select('*').order('sort_order').order('id'),
-      new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),8000))
-    ]);
+    const ac=new AbortController();
+    const tid=setTimeout(()=>ac.abort(),10000);
+    // Use raw fetch to bypass any Supabase JS client hang issues
+    const res=await fetch(`${SB_URL}/rest/v1/reading_lessons?select=*&order=sort_order.asc,id.asc`,{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Accept':'application/json'},
+      signal:ac.signal
+    });
+    clearTimeout(tid);
+    if(!res.ok){
+      const err=await res.text().catch(()=>'');
+      console.warn('[reading] HTTP error',res.status,err);
+      el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">⚠️</div><div style="color:var(--yellow)">Lỗi HTTP ${res.status}.<br><small style="color:var(--t3)">${err.slice(0,120)}</small></div></div>`;
+      return;
+    }
+    const data=await res.json();
+    console.info('[reading] raw fetch OK:',data.length,'bài');
+    if(data.length){READING_LESSONS=data;_renderRLList();}
+    else el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">🎧</div><div>Chưa có bài luyện nghe nào.<br>Thêm bài mới trong <a href="admin.html" style="color:var(--teal)">Admin → Karaoke Nghe</a>.</div></div>`;
   } catch(e){
-    console.warn('[reading] fetch timeout/error:',e.message);
-    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">⚠️</div><div style="color:var(--yellow)">Không tải được dữ liệu (timeout).<br><small style="color:var(--t3)">Kiểm tra kết nối và RLS policy anon SELECT trên bảng reading_lessons.</small></div></div>`;
-    return;
-  }
-  if(rl.error){
-    console.warn('[reading] fetch error:',rl.error.message);
-    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">⚠️</div><div style="color:var(--yellow)">Lỗi: ${rl.error.message}</div></div>`;
-    return;
-  }
-  if((rl.data||[]).length){
-    READING_LESSONS=rl.data;
-    _renderRLList();
-  } else {
-    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">🎧</div><div>Chưa có bài luyện nghe nào.<br>Thêm bài mới trong <a href="admin.html" style="color:var(--teal)">Admin → Karaoke Nghe</a>.</div></div>`;
+    console.warn('[reading] fetch error:',e.message);
+    const isTO=e.name==='AbortError';
+    el.innerHTML=`<div class="rl-empty"><div class="rl-empty-ic">⚠️</div><div style="color:var(--yellow)">${isTO?'Timeout — Supabase không phản hồi.':'Lỗi kết nối: '+e.message}<br><small style="color:var(--t3)">Thử tải lại trang.</small></div></div>`;
   }
 }
 
@@ -2150,15 +2151,20 @@ if(!sessionStorage.getItem('_wXP')){
     if(d.error){ console.warn('[live] dialogues error:', d.error?.message); return false; }
     if(l.error) console.warn('[live] levels error (dùng defaults):', l.error?.message);
     if(b.error) console.warn('[live] badges error (dùng defaults):', b.error?.message);
-    // Load reading_lessons separately with a 8s timeout so it can't block anything
+    // Load reading_lessons via raw fetch to avoid Supabase JS client hang
     try {
-      const rl = await Promise.race([
-        sb.from('reading_lessons').select('*').order('sort_order').order('id'),
-        new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),8000))
-      ]);
-      if(rl.error) console.warn('[live] reading_lessons error:', rl.error?.message);
-      else if((rl.data||[]).length){ READING_LESSONS=rl.data.map(r=>({...r})); console.info('[live] reading_lessons: '+READING_LESSONS.length+' bài'); }
-      else console.warn('[live] reading_lessons: anon nhận được [] — kiểm tra RLS SELECT policy cho anon');
+      const ac2=new AbortController();
+      const tid2=setTimeout(()=>ac2.abort(),8000);
+      const rlRes=await fetch(`${URL}/rest/v1/reading_lessons?select=*&order=sort_order.asc,id.asc`,{
+        headers:{'apikey':KEY,'Authorization':'Bearer '+KEY,'Accept':'application/json'},
+        signal:ac2.signal
+      });
+      clearTimeout(tid2);
+      if(rlRes.ok){
+        const rlData=await rlRes.json();
+        if(rlData.length){ READING_LESSONS=rlData; console.info('[live] reading_lessons: '+rlData.length+' bài'); }
+        else console.warn('[live] reading_lessons: anon nhận được [] — kiểm tra RLS SELECT policy cho anon');
+      } else console.warn('[live] reading_lessons HTTP error:',rlRes.status);
     } catch(e){ console.warn('[live] reading_lessons skip:',e.message); }
     // categories đã được xử lý bởi syncCategories() — không cần làm lại ở đây
     // ── Phrases → DATA ──
