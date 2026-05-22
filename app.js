@@ -1791,6 +1791,7 @@ function selMatch(side,idx,de){
 // DASHBOARD
 // ════════════════════════════════════════════════════════
 function renderDashboard(){
+  if(!document.getElementById('dash-xp-card')) return;
   const lv=getLevel(GS.xp),nx=getNextLevel(GS.xp);
   const base=lv.min,top=nx?nx.min:GS.xp+1;
   const pct=Math.round((GS.xp-base)/(top-base)*100);
@@ -2655,7 +2656,8 @@ window.showConjugation=showConjugation;
     const d=document.getElementById('auth-drop');
     if(d) d.style.display='none';
     clearTimeout(_cloudSaveTimer);
-    try { await pushProgress(); } catch(e){ console.warn('[auth] push failed:', e); }
+    // Timeout so a slow/failing push never blocks sign-out
+    try { await Promise.race([pushProgress(), new Promise(r=>setTimeout(r,3000))]); } catch(e){ console.warn('[auth] push failed:', e); }
     _currentUser = null; // clear before signOut so SIGNED_OUT handler skips re-render
     try { await sb.auth.signOut(); } catch(e){ console.warn('[auth] signOut error:', e.message); }
     _bookmarks = new Set();
@@ -2664,8 +2666,8 @@ window.showConjugation=showConjugation;
     Object.assign(GS,{xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:'',xpHistory:[]});
     renderAuthUI(null);
     updateXPUI();
-    renderTopicTabs();
-    renderDashboard();
+    try { renderTopicTabs(); } catch(e){}
+    navTo('dashboard'); // navigate + render dashboard together
     toast('Đã đăng xuất');
   };
   window.toggleUserMenu = function(e){
