@@ -34,10 +34,11 @@
     <div class="nav-sec" id="nav-sec-vocab">Từ vựng</div>
     <div id="nav-vocab-cats"></div>
     <div class="nav-sec">Học tập</div>
-    <div class="nav-it" data-page="dialogue"  style="--tc:var(--teal)"><span class="nav-ic">💬</span>Hội thoại mẫu<span class="nav-new">MỚI</span></div>
-    <div class="nav-it" data-page="srs"       style="--tc:var(--purple)"><span class="nav-ic">🔁</span>Ôn tập thông minh<span class="nav-new">SRS</span></div>
-    <div class="nav-it" data-page="roleplay"  style="--tc:var(--orange)"><span class="nav-ic">🤖</span>Roleplay AI<span class="nav-new">AI</span></div>
-    <div class="nav-it" data-page="exercise"  style="--tc:var(--yellow)"><span class="nav-ic">✏️</span>Bài tập</div>
+    <div class="nav-it" data-page="learning-path" style="--tc:var(--teal)" onclick="navTo('learning-path')"><span class="nav-ic">🗺️</span><span data-i18n="nav_lp">Lộ trình học</span><span class="nav-new">MỚI</span></div>
+    <div class="nav-it" data-page="dialogue"  style="--tc:var(--teal)"><span class="nav-ic">💬</span><span data-i18n="nav_dialogue">Hội thoại mẫu</span></div>
+    <div class="nav-it" data-page="srs"       style="--tc:var(--purple)"><span class="nav-ic">🔁</span><span data-i18n="nav_srs">Ôn tập thông minh</span><span class="nav-new">SRS</span></div>
+    <div class="nav-it" data-page="roleplay"  style="--tc:var(--orange)"><span class="nav-ic">🤖</span><span data-i18n="nav_roleplay">Roleplay AI</span><span class="nav-new">AI</span></div>
+    <div class="nav-it" data-page="exercise"  style="--tc:var(--yellow)"><span class="nav-ic">✏️</span><span data-i18n="nav_exercise">Bài tập</span></div>
   </nav>
   <div class="sb-foot">
     <div class="sb-stats">
@@ -58,6 +59,7 @@
     </div>
     <div class="tb-acts">
       <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Đổi giao diện">🌙</button>
+      <button class="ib" id="lang-btn" onclick="toggleLang()" title="Chuyển ngôn ngữ UI" style="font-size:.72rem;padding:4px 10px">🇩🇪 DE</button>
       <div class="xp-pill" id="tb-xp">⭐ 0 XP</div>
       <button class="ib pri" onclick="openGoogleModal()">🔗 Xuất Google</button>
       <a href="admin.html" class="ib" style="text-decoration:none;border-color:rgba(159,110,245,.3);color:var(--purple);" title="Trang quản trị nội dung">⚙️ Admin</a>
@@ -84,6 +86,9 @@
 
   <!-- BOOKMARKS PAGE -->
   <div class="page" id="page-bookmarks"></div>
+
+  <!-- LEARNING PATH PAGE -->
+  <div class="page" id="page-learning-path"></div>
 
   <!-- DIALOGUE PAGE -->
   <div class="page" id="page-dialogue">
@@ -115,6 +120,7 @@
         <div class="ex-card" style="--ec:var(--yellow)" onclick="startEx('listening')"><div class="ex-ic">👂</div><div class="ex-tit">Nghe & Chọn</div><div class="ex-desc">Text-to-Speech tiếng Đức</div><div class="ex-meta">🔊 Luyện nghe</div></div>
         <div class="ex-card" style="--ec:var(--orange)" onclick="startEx('context')"><div class="ex-ic">🏥</div><div class="ex-tit">Tình huống</div><div class="ex-desc">Chọn câu đúng trong lâm sàng</div><div class="ex-meta">🩺 Thực tế</div></div>
         <div class="ex-card ex-card-mock" style="--ec:var(--red)" onclick="startMockExam()"><div class="ex-ic">⏱️</div><div class="ex-tit">Thi thử</div><div class="ex-desc">20 câu · 5 phút · không gợi ý</div><div class="ex-meta">🎯 Thực chiến</div></div>
+        <div class="ex-card ex-card-mock" style="--ec:var(--purple)" onclick="startAIExercise()"><div class="ex-ic">🤖</div><div class="ex-tit">AI Bài tập</div><div class="ex-desc">GPT tạo câu hỏi từ từ vựng của bạn</div><div class="ex-meta">✨ Mới mỗi lần</div></div>
       </div>
     </div>
     <div class="ex-runner" id="exRunner">

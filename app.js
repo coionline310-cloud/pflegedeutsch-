@@ -739,6 +739,7 @@ function navTo(pg){
   const pageEl=document.getElementById('page-'+pg);
   if(pageEl) pageEl.classList.add('active');
   if(pg==='bookmarks')renderBookmarksPage();
+  else if(pg==='learning-path')renderLearningPath();
   else if(isCatPage)ensurePage(pg);
   if(pg==='dashboard')renderDashboard();
   if(pg==='dialogue')renderDialogues();
@@ -910,6 +911,7 @@ function ensurePage(cat){
         <button class="mt" onclick="setPMode('${cat}','type',this)">⌨️ Gõ chính tả</button>
       </div>
     </div>
+    ${renderCatVideo(cat)}
     <div id="${cat}-lv">${renderListH(cat,isV)}</div>
     <div id="${cat}-fv" style="display:none;"></div>
     <div id="${cat}-tv" style="display:none;"></div>`;
@@ -1313,6 +1315,7 @@ function renderSRSCard(){
             <div class="fc-lang">🇻🇳 Tiếng Việt</div>
             <div class="fc-txt">${card.vi}</div>
             <div style="font-size:.7rem;color:var(--t3);margin-top:.6rem;">${CAT_META[card.cat]?.ic||''} ${CAT_META[card.cat]?.l||''}</div>
+            ${renderMemoSection(card.de)}
           </div>
         </div>
       </div>
@@ -1321,8 +1324,9 @@ function renderSRSCard(){
         <button class="fc-rb ok"   onclick="rateSRS(3)">👍 Nhớ được</button>
         <button class="fc-rb easy" onclick="rateSRS(5)">⚡ Thuộc rồi</button>
       </div>
-      <div class="srs-speak-row">
+      <div class="srs-speak-row" style="gap:6px;flex-wrap:wrap;">
         <button class="srs-speak-btn" onclick="speakDE('${esc(card.de)}')">🔊 Nghe phát âm</button>
+        ${/[a-zäöüß]+en$/i.test(card.de.trim())?`<button class="srs-speak-btn" onclick="showConjugation('${esc(card.de.split(/[\s,]/)[0])}')">🔠 Chia động từ</button>`:''}
       </div>
     </div>`;
 }
@@ -1610,6 +1614,7 @@ function loadExQ(){
   else if(exType==='match') loadMatch();
   else if(exType==='listening') loadListening();
   else if(exType==='context')   loadContext();
+  else if(exType==='ai')        loadAIExQ();
 }
 function showRoundDone(){
   const pct=Math.round(exOk/(exOk+exFail||1)*100);
@@ -2109,6 +2114,357 @@ function generateCertificate(){
   w.document.close();
 }
 window.generateCertificate=generateCertificate;
+
+// ════════════════════════════════════════════════════════
+// 🌐 I18N — Đa ngôn ngữ UI (VI / DE)
+// ════════════════════════════════════════════════════════
+const I18N={
+  vi:{
+    nav_dashboard:'Dashboard',nav_bookmarks:'Yêu thích',nav_lp:'Lộ trình học',
+    nav_dialogue:'Hội thoại mẫu',nav_srs:'Ôn tập thông minh',nav_roleplay:'Roleplay AI',
+    nav_exercise:'Bài tập',nav_comm:'Giao tiếp',nav_vocab:'Từ vựng',nav_learning:'Học tập',
+    dash_title:'Dashboard',dash_sub:'Tiến độ học tập & thành tích của bạn',
+    dial_title:'Hội thoại mẫu',dial_sub:'Các đoạn hội thoại thực tế tại bệnh viện — nhấn để xem & nghe',
+    srs_title:'Ôn tập thông minh (Spaced Repetition)',srs_sub:'Hệ thống nhắc nhở theo thuật toán SM-2 — ôn đúng lúc, nhớ lâu hơn',
+    rp_title:'Roleplay AI',rp_sub:'Luyện tập hội thoại thực tế với AI đóng vai bệnh nhân hoặc đồng nghiệp',
+    ex_title:'Bài tập luyện tập',ex_sub:'Chọn loại bài tập để bắt đầu',
+    btn_login:'Đăng nhập',btn_logout:'Đăng xuất',btn_register:'Đăng ký',
+    streak_lbl:'ngày liên tiếp',total_lbl:'Tổng mục',mastered_lbl:'Đã thuộc',
+  },
+  de:{
+    nav_dashboard:'Übersicht',nav_bookmarks:'Favoriten',nav_lp:'Lernpfad',
+    nav_dialogue:'Dialoge',nav_srs:'Wiederholung',nav_roleplay:'KI-Rollenspiel',
+    nav_exercise:'Übungen',nav_comm:'Kommunikation',nav_vocab:'Wortschatz',nav_learning:'Lernen',
+    dash_title:'Übersicht',dash_sub:'Dein Lernfortschritt & Erfolge',
+    dial_title:'Musterdialoge',dial_sub:'Alltagsgespräche im Krankenhaus — anklicken zum Lesen & Hören',
+    srs_title:'Intelligentes Wiederholen (SRS)',srs_sub:'SM-2-Algorithmus — zur richtigen Zeit wiederholen, länger behalten',
+    rp_title:'KI-Rollenspiel',rp_sub:'Üben mit KI als Patient oder Kollege',
+    ex_title:'Übungsaufgaben',ex_sub:'Übungstyp auswählen',
+    btn_login:'Anmelden',btn_logout:'Abmelden',btn_register:'Registrieren',
+    streak_lbl:'Tage in Folge',total_lbl:'Gesamt',mastered_lbl:'Gelernt',
+  }
+};
+let _lang=localStorage.getItem('pd-lang')||'vi';
+function t(k){return(I18N[_lang]&&I18N[_lang][k])||(I18N.vi&&I18N.vi[k])||k;}
+function toggleLang(){
+  _lang=_lang==='vi'?'de':'vi';
+  localStorage.setItem('pd-lang',_lang);
+  document.querySelectorAll('[data-i18n]').forEach(el=>el.textContent=t(el.dataset.i18n));
+  const lb=document.getElementById('lang-btn');
+  if(lb)lb.textContent=_lang==='vi'?'🇩🇪 DE':'🇻🇳 VI';
+}
+window.t=t;window.toggleLang=toggleLang;
+
+// ════════════════════════════════════════════════════════
+// 🗺️ LỘTRÌNH HỌC CÁ NHÂN (Learning Path)
+// ════════════════════════════════════════════════════════
+function calcCatScore(cat){
+  const items=flatCat(cat);if(!items.length)return null;
+  const now=Date.now(),total=items.length;
+  const notStarted=items.filter(p=>!SRS_DB[p.de]).length;
+  const weak=items.filter(p=>{const s=SRS_DB[p.de];return s&&s.ease<2.2;}).length;
+  const due=items.filter(p=>{const s=SRS_DB[p.de];return s&&s.due<=now;}).length;
+  const done=items.filter(p=>{const s=SRS_DB[p.de];return s&&s.due>now;}).length;
+  const score=(notStarted*3+weak*2+due*1.5)/total;
+  const completion=Math.round(done/total*100);
+  return{score,total,notStarted,weak,due,done,completion};
+}
+function renderLearningPath(){
+  const el=document.getElementById('page-learning-path');if(!el)return;
+  const cats=Object.keys(CAT_META);
+  const rows=cats.map(cat=>{const s=calcCatScore(cat);return s?{cat,meta:CAT_META[cat],...s}:null;})
+    .filter(Boolean).sort((a,b)=>b.score-a.score);
+  if(!rows.length){
+    el.innerHTML=`<div class="ph"><div class="pt">🗺️ Lộ trình học cá nhân</div></div><div style="text-align:center;padding:3rem;color:var(--t2)">Chưa có dữ liệu. Hãy thêm từ vựng qua Admin.</div>`;
+    return;
+  }
+  el.innerHTML=`
+    <div class="ph"><div class="pt">🗺️ Lộ trình học cá nhân</div><div class="ps">Thứ tự đề xuất dựa trên dữ liệu SRS của bạn — ưu tiên những mục còn yếu</div></div>
+    <div class="lp-list">
+      ${rows.map((c,i)=>`
+        <div class="lp-item" onclick="navTo('${c.cat}')">
+          <div class="lp-rank ${c.completion===100?'lp-rank-done':''}">${c.completion===100?'✓':i+1}</div>
+          <div class="lp-ic">${c.meta.ic}</div>
+          <div class="lp-info">
+            <div class="lp-name">${sanitize(c.meta.l)}</div>
+            <div class="lp-tags">
+              ${c.notStarted>0?`<span class="lp-tag lp-new">${c.notStarted} chưa học</span>`:''}
+              ${c.weak>0?`<span class="lp-tag lp-weak">${c.weak} điểm yếu</span>`:''}
+              ${c.due>0?`<span class="lp-tag lp-due">${c.due} cần ôn</span>`:''}
+              ${c.completion===100?`<span class="lp-tag lp-ok">✓ Hoàn thành</span>`:''}
+            </div>
+            <div class="lp-bar-wrap"><div class="lp-bar-fill" style="width:${c.completion}%;background:${c.meta.c||'var(--blue)'}"></div></div>
+          </div>
+          <div class="lp-pct${c.completion===100?' lp-pct-done':''}">${c.completion}%</div>
+        </div>`).join('')}
+    </div>`;
+}
+window.renderLearningPath=renderLearningPath;
+
+// ════════════════════════════════════════════════════════
+// 🤖 AUTO-GENERATE BÀI TẬP (AI Exercise)
+// ════════════════════════════════════════════════════════
+async function startAIExercise(){
+  const words=shuffle(flatAll()).slice(0,8);
+  if(!words.length){toast('Chưa có từ vựng trong DB!');return;}
+  const wordList=words.map(w=>`${w.de} = ${w.vi}`).join('\n');
+  const menu=document.getElementById('exMenu');
+  const runner=document.getElementById('exRunner');
+  if(menu)menu.classList.add('off');
+  if(runner)runner.classList.add('on');
+  const timerEl=document.getElementById('ex-timer');if(timerEl)timerEl.style.display='none';
+  document.getElementById('ex-ok').textContent='0 đúng';
+  document.getElementById('ex-fail').textContent='0 sai';
+  document.getElementById('ex-streak').textContent='🔥 0';
+  document.getElementById('ex-xp').textContent='+0 XP';
+  document.getElementById('exContent').innerHTML=`<div style="text-align:center;padding:3rem;color:var(--t2)"><div style="font-size:2.5rem;margin-bottom:.6rem">🤖</div><div style="font-size:.9rem">AI đang tạo bài tập...</div></div>`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({
+        model:'claude-haiku-4-5-20251001',max_tokens:1200,
+        system:'You are a German medical vocabulary exercise generator. Return ONLY valid JSON array, no markdown, no explanation.',
+        messages:[{role:'user',content:`Tạo 5 câu bài tập tiếng Đức từ danh sách:\n${wordList}\n\nTrả về JSON array, mỗi phần tử:\n{"type":"mcq"|"fill","q":"câu hỏi","ans":"đáp án tiếng Đức","opts":["A","B","C","D"],"hint":"gợi ý"}\nOpts chỉ cần cho mcq. Không thêm text ngoài JSON.`}]
+      })
+    });
+    const data=await res.json();
+    const text=data.content?.[0]?.text||'[]';
+    const m=text.match(/\[[\s\S]*\]/);
+    const pool=m?JSON.parse(m[0]):[];
+    if(!pool.length)throw new Error('empty');
+    exType='ai';exPool=pool.map(q=>({de:q.ans,vi:q.q,_ai:q}));
+    exIdx=0;exOk=0;exFail=0;exStreak=0;exRoundXP=0;
+    updateExScore();loadExQ();
+  }catch(e){
+    document.getElementById('exContent').innerHTML=`<div style="text-align:center;padding:3rem;color:var(--red)">❌ Không thể tạo bài tập AI.<br><small style="color:var(--t2)">${sanitize(e.message||'Lỗi kết nối')}</small><br><br><button class="ex-back" onclick="backToExMenu()">← Quay lại</button></div>`;
+  }
+}
+window.startAIExercise=startAIExercise;
+
+function loadAIExQ(){
+  if(exIdx>=exPool.length){showRoundDone();return;}
+  const q=exPool[exIdx]._ai;
+  const content=document.getElementById('exContent');if(!content)return;
+  if(q.type==='fill'){
+    content.innerHTML=`
+      <div class="ex-hdr">
+        <div class="ex-ql">🤖 AI · Điền từ ${exIdx+1}/${exPool.length}</div>
+        <div class="ex-qt">${sanitize(q.q)}</div>
+        ${q.hint?`<div class="ex-qh">💡 ${sanitize(q.hint)}</div>`:''}
+      </div>
+      <input class="ex-fi" id="ai-inp" placeholder="Nhập tiếng Đức..." onkeydown="if(event.key==='Enter')checkAIFill()">
+      <button class="ex-sub" onclick="checkAIFill()">Kiểm tra</button>
+      <div class="ex-fb" id="ai-fb"></div>
+      <button class="ex-nxt" id="ai-nxt" onclick="nextAIQ()">Câu tiếp →</button>`;
+    setTimeout(()=>document.getElementById('ai-inp')?.focus(),50);
+  } else {
+    const opts=q.opts&&q.opts.length?q.opts:[q.ans];
+    content.innerHTML=`
+      <div class="ex-hdr">
+        <div class="ex-ql">🤖 AI · Trắc nghiệm ${exIdx+1}/${exPool.length}</div>
+        <div class="ex-qt">${sanitize(q.q)}</div>
+      </div>
+      <div class="ex-opts">
+        ${opts.map(o=>`<button class="ex-opt" onclick="checkAIOpt(this,'${esc(o)}','${esc(q.ans)}')">${sanitize(o)}</button>`).join('')}
+      </div>
+      <div class="ex-fb" id="ai-fb"></div>
+      <button class="ex-nxt" id="ai-nxt" onclick="nextAIQ()">Câu tiếp →</button>`;
+  }
+}
+function checkAIFill(){
+  const inp=document.getElementById('ai-inp');if(!inp||inp.disabled)return;
+  const q=exPool[exIdx]._ai;
+  const user=inp.value.trim().toLowerCase();
+  const correct=q.ans.toLowerCase();
+  const isOk=user===correct||user===correct.replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss');
+  inp.disabled=true;
+  const fb=document.getElementById('ai-fb');
+  const nxt=document.getElementById('ai-nxt');
+  if(isOk){inp.classList.add('cor');exOk++;exStreak++;exRoundXP+=10;addXP(10,'AI bài tập đúng');fb.className='ex-fb on ok';fb.textContent='✓ Chính xác!';}
+  else{inp.classList.add('wr');exFail++;exStreak=0;fb.className='ex-fb on fail';fb.textContent=`✗ Đáp án: ${q.ans}`;}
+  if(nxt)nxt.classList.add('on');
+  updateExScore();
+}
+function checkAIOpt(btn,opt,ans){
+  document.querySelectorAll('#exContent .ex-opt').forEach(b=>b.disabled=true);
+  const fb=document.getElementById('ai-fb');const nxt=document.getElementById('ai-nxt');
+  if(opt===ans){btn.classList.add('cor');exOk++;exStreak++;exRoundXP+=10;addXP(10,'AI bài tập đúng');fb.className='ex-fb on ok';fb.textContent='✓ Chính xác!';}
+  else{btn.classList.add('wr');exFail++;exStreak=0;document.querySelectorAll('#exContent .ex-opt').forEach(b=>{if(b.textContent.trim()===ans)b.classList.add('cor');});fb.className='ex-fb on fail';fb.textContent=`✗ Đáp án: ${ans}`;}
+  if(nxt)nxt.classList.add('on');
+  updateExScore();
+}
+function nextAIQ(){exIdx++;exAnswered=false;loadAIExQ();}
+window.checkAIFill=checkAIFill;window.checkAIOpt=checkAIOpt;window.nextAIQ=nextAIQ;
+
+// ════════════════════════════════════════════════════════
+// 🎬 VIDEO BÀI HỌC (Category Videos)
+// ════════════════════════════════════════════════════════
+function getCatVideos(){try{return JSON.parse(localStorage.getItem('pd-cat-videos')||'{}');}catch(e){return {};}}
+function setCatVideo(cat,url){const v=getCatVideos();if(url)v[cat]=url;else delete v[cat];localStorage.setItem('pd-cat-videos',JSON.stringify(v));}
+function renderCatVideo(cat){
+  const url=(getCatVideos())[cat];if(!url)return'';
+  const m=url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&\s?]+)/);
+  if(!m)return'';
+  const vid=m[1];
+  return`<div class="cat-video-wrap">
+    <div class="cat-video-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.cvt').textContent=this.nextElementSibling.style.display==='none'?'▼':'▲'">
+      <span>▶️ Video bài học</span><span class="cvt">▼</span>
+    </div>
+    <div class="cat-video-body" style="display:none">
+      <div class="cat-video-container">
+        <iframe src="https://www.youtube.com/embed/${vid}" frameborder="0" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture"></iframe>
+      </div>
+    </div>
+  </div>`;
+}
+window.getCatVideos=getCatVideos;window.setCatVideo=setCatVideo;window.renderCatVideo=renderCatVideo;
+
+// ════════════════════════════════════════════════════════
+// 📝 MNEMONIC — Ghi nhớ cá nhân
+// ════════════════════════════════════════════════════════
+function getMemos(){try{return JSON.parse(localStorage.getItem('pd-memos')||'{}');}catch(e){return{};}}
+function saveMemo(de,note,img){
+  const m=getMemos();
+  if(note||img)m[de]={note:note||'',img:img||''};else delete m[de];
+  localStorage.setItem('pd-memos',JSON.stringify(m));
+}
+function renderMemoSection(de){
+  const memo=(getMemos())[de]||{};
+  return`<div class="memo-section">
+    ${memo.img?`<img class="memo-img" src="${sanitize(memo.img)}" alt="" onerror="this.style.display='none'">`:''}
+    ${memo.note?`<div class="memo-note">${sanitize(memo.note)}</div>`:''}
+    <button class="memo-btn" onclick="openMemoEditor('${esc(de)}');event.stopPropagation()">${memo.note||memo.img?'✏️ Sửa ghi nhớ':'➕ Thêm ghi nhớ'}</button>
+  </div>`;
+}
+function openMemoEditor(de){
+  document.getElementById('memo-overlay')?.remove();
+  const memo=(getMemos())[de]||{};
+  const ov=document.createElement('div');
+  ov.id='memo-overlay';ov.className='overlay on';
+  ov.innerHTML=`<div class="mbox" style="max-width:420px">
+    <div class="mbox-title">📝 Ghi nhớ cá nhân</div>
+    <div class="mbox-sub" style="font-family:var(--serif);font-size:1rem;color:var(--tx)">${sanitize(de)}</div>
+    <div class="auth-field">
+      <label class="auth-lbl">Ghi chú / Mnemonic</label>
+      <textarea class="auth-inp" id="m-note" rows="3" placeholder="Ví dụ: der Patient → bệnh nhân nam, nhớ bằng cách...">${sanitize(memo.note||'')}</textarea>
+    </div>
+    <div class="auth-field">
+      <label class="auth-lbl">URL ảnh minh họa (tuỳ chọn)</label>
+      <input class="auth-inp" id="m-img" type="url" placeholder="https://..." value="${sanitize(memo.img||'')}">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:.5rem">
+      <button class="auth-submit-btn" style="flex:1" onclick="saveMemoUI('${esc(de)}')">💾 Lưu</button>
+      ${memo.note||memo.img?`<button class="mclose" style="color:var(--red)" onclick="deleteMemoUI('${esc(de)}')">🗑️</button>`:''}
+      <button class="mclose" onclick="document.getElementById('memo-overlay').remove()">Hủy</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function saveMemoUI(de){
+  const note=document.getElementById('m-note')?.value.trim()||'';
+  const img=document.getElementById('m-img')?.value.trim()||'';
+  saveMemo(de,note,img);
+  document.getElementById('memo-overlay')?.remove();
+  renderSRSCard();toast('✓ Đã lưu ghi nhớ');
+}
+function deleteMemoUI(de){
+  saveMemo(de,'','');
+  document.getElementById('memo-overlay')?.remove();
+  renderSRSCard();toast('Đã xóa ghi nhớ');
+}
+window.getMemos=getMemos;window.saveMemo=saveMemo;window.renderMemoSection=renderMemoSection;
+window.openMemoEditor=openMemoEditor;window.saveMemoUI=saveMemoUI;window.deleteMemoUI=deleteMemoUI;
+
+// ════════════════════════════════════════════════════════
+// 🔠 CONJUGATION TABLE — Bảng chia động từ Đức
+// ════════════════════════════════════════════════════════
+const CONJ_IRR={
+  sein:{pr:['bin','bist','ist','sind','seid','sind'],pt:['war','warst','war','waren','wart','waren'],aux:'sein',pp:'gewesen'},
+  haben:{pr:['habe','hast','hat','haben','habt','haben'],pt:['hatte','hattest','hatte','hatten','hattet','hatten'],aux:'haben',pp:'gehabt'},
+  werden:{pr:['werde','wirst','wird','werden','werdet','werden'],pt:['wurde','wurdest','wurde','wurden','wurdet','wurden'],aux:'sein',pp:'geworden'},
+  gehen:{pr:['gehe','gehst','geht','gehen','geht','gehen'],pt:['ging','gingst','ging','gingen','gingt','gingen'],aux:'sein',pp:'gegangen'},
+  kommen:{pr:['komme','kommst','kommt','kommen','kommt','kommen'],pt:['kam','kamst','kam','kamen','kamt','kamen'],aux:'sein',pp:'gekommen'},
+  können:{pr:['kann','kannst','kann','können','könnt','können'],pt:['konnte','konntest','konnte','konnten','konntet','konnten'],aux:'haben',pp:'gekonnt'},
+  müssen:{pr:['muss','musst','muss','müssen','müsst','müssen'],pt:['musste','musstest','musste','mussten','musstet','mussten'],aux:'haben',pp:'gemusst'},
+  dürfen:{pr:['darf','darfst','darf','dürfen','dürft','dürfen'],pt:['durfte','durftest','durfte','durften','durftet','durften'],aux:'haben',pp:'gedurft'},
+  sollen:{pr:['soll','sollst','soll','sollen','sollt','sollen'],pt:['sollte','solltest','sollte','sollten','solltet','sollten'],aux:'haben',pp:'gesollt'},
+  wollen:{pr:['will','willst','will','wollen','wollt','wollen'],pt:['wollte','wolltest','wollte','wollten','wolltet','wollten'],aux:'haben',pp:'gewollt'},
+  wissen:{pr:['weiß','weißt','weiß','wissen','wisst','wissen'],pt:['wusste','wusstest','wusste','wussten','wusstet','wussten'],aux:'haben',pp:'gewusst'},
+  nehmen:{pr:['nehme','nimmst','nimmt','nehmen','nehmt','nehmen'],pt:['nahm','nahmst','nahm','nahmen','nahmt','nahmen'],aux:'haben',pp:'genommen'},
+  geben:{pr:['gebe','gibst','gibt','geben','gebt','geben'],pt:['gab','gabst','gab','gaben','gabt','gaben'],aux:'haben',pp:'gegeben'},
+  sehen:{pr:['sehe','siehst','sieht','sehen','seht','sehen'],pt:['sah','sahst','sah','sahen','saht','sahen'],aux:'haben',pp:'gesehen'},
+  sprechen:{pr:['spreche','sprichst','spricht','sprechen','sprecht','sprechen'],pt:['sprach','sprachst','sprach','sprachen','spracht','sprachen'],aux:'haben',pp:'gesprochen'},
+  helfen:{pr:['helfe','hilfst','hilft','helfen','helft','helfen'],pt:['half','halfst','half','halfen','halft','halfen'],aux:'haben',pp:'geholfen'},
+  schreiben:{pr:['schreibe','schreibst','schreibt','schreiben','schreibt','schreiben'],pt:['schrieb','schriebst','schrieb','schrieben','schriebt','schrieben'],aux:'haben',pp:'geschrieben'},
+  lesen:{pr:['lese','liest','liest','lesen','lest','lesen'],pt:['las','last','las','lasen','last','lasen'],aux:'haben',pp:'gelesen'},
+  fahren:{pr:['fahre','fährst','fährt','fahren','fahrt','fahren'],pt:['fuhr','fuhrst','fuhr','fuhren','fuhrt','fuhren'],aux:'sein',pp:'gefahren'},
+  laufen:{pr:['laufe','läufst','läuft','laufen','lauft','laufen'],pt:['lief','liefst','lief','liefen','lieft','liefen'],aux:'sein',pp:'gelaufen'},
+  liegen:{pr:['liege','liegst','liegt','liegen','liegt','liegen'],pt:['lag','lagst','lag','lagen','lagt','lagen'],aux:'haben',pp:'gelegen'},
+  stehen:{pr:['stehe','stehst','steht','stehen','steht','stehen'],pt:['stand','standst','stand','standen','standet','standen'],aux:'haben',pp:'gestanden'},
+  messen:{pr:['messe','misst','misst','messen','messt','messen'],pt:['maß','maßt','maß','maßen','maßt','maßen'],aux:'haben',pp:'gemessen'},
+  leiden:{pr:['leide','leidest','leidet','leiden','leidet','leiden'],pt:['litt','littest','litt','litten','littet','litten'],aux:'haben',pp:'gelitten'},
+  sterben:{pr:['sterbe','stirbst','stirbt','sterben','sterbt','sterben'],pt:['starb','starbst','starb','starben','starbt','starben'],aux:'sein',pp:'gestorben'},
+  bringen:{pr:['bringe','bringst','bringt','bringen','bringt','bringen'],pt:['brachte','brachtest','brachte','brachten','brachtet','brachten'],aux:'haben',pp:'gebracht'},
+  denken:{pr:['denke','denkst','denkt','denken','denkt','denken'],pt:['dachte','dachtest','dachte','dachten','dachtet','dachten'],aux:'haben',pp:'gedacht'},
+  kennen:{pr:['kenne','kennst','kennt','kennen','kennt','kennen'],pt:['kannte','kanntest','kannte','kannten','kanntet','kannten'],aux:'haben',pp:'gekannt'},
+  pflegen:{pr:['pflege','pflegst','pflegt','pflegen','pflegt','pflegen'],pt:['pflegte','pflegtest','pflegte','pflegten','pflegtet','pflegten'],aux:'haben',pp:'gepflegt'},
+  atmen:{pr:['atme','atmest','atmet','atmen','atmet','atmen'],pt:['atmete','atmetest','atmete','atmeten','atmetet','atmeten'],aux:'haben',pp:'geatmet'},
+  waschen:{pr:['wasche','wäschst','wäscht','waschen','wascht','waschen'],pt:['wusch','wuschst','wusch','wuschen','wuscht','wuschen'],aux:'haben',pp:'gewaschen'},
+  trinken:{pr:['trinke','trinkst','trinkt','trinken','trinkt','trinken'],pt:['trank','trankst','trank','tranken','trankt','tranken'],aux:'haben',pp:'getrunken'},
+  essen:{pr:['esse','isst','isst','essen','esst','essen'],pt:['aß','aßt','aß','aßen','aßt','aßen'],aux:'haben',pp:'gegessen'},
+  schlafen:{pr:['schlafe','schläfst','schläft','schlafen','schlaft','schlafen'],pt:['schlief','schliefst','schlief','schliefen','schlieft','schliefen'],aux:'haben',pp:'geschlafen'},
+};
+const PRON=['ich','du','er/sie','wir','ihr','sie/Sie'];
+function conjugateVerb(inf){
+  const lo=inf.toLowerCase().replace(/[,\s].*/,'');
+  if(CONJ_IRR[lo]){
+    const c=CONJ_IRR[lo];
+    const auxForms=['habe','hast','hat','haben','habt','haben'];
+    const auxSein=['bin','bist','ist','sind','seid','sind'];
+    const auxArr=c.aux==='sein'?auxSein:auxForms;
+    return{inf:lo,pres:c.pr,prät:c.pt,perf:auxArr.map(a=>`${a} ${c.pp}`),reg:false};
+  }
+  if(!lo.endsWith('en')&&!lo.endsWith('eln')&&!lo.endsWith('ern'))return null;
+  const stem=lo.endsWith('eln')||lo.endsWith('ern')?lo.slice(0,-3):lo.slice(0,-2);
+  const noGe=/^(be|er|ver|ent|ge|zer|emp|miss)/.test(stem);
+  const pp=noGe?stem+'t':'ge'+stem+'t';
+  return{
+    inf:lo,reg:true,
+    pres:[stem+'e',stem+'st',stem+'t',stem+'en',stem+'t',stem+'en'],
+    prät:[stem+'te',stem+'test',stem+'te',stem+'ten',stem+'tet',stem+'ten'],
+    perf:['habe','hast','hat','haben','habt','haben'].map(a=>`${a} ${pp}`)
+  };
+}
+function showConjugation(word){
+  const r=conjugateVerb(word);
+  if(!r){toast(`"${word}" — không tìm thấy dạng chia`);return;}
+  document.getElementById('conj-popup')?.remove();
+  const pop=document.createElement('div');
+  pop.id='conj-popup';pop.className='overlay on';
+  pop.innerHTML=`<div class="mbox" style="max-width:560px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <div>
+        <div class="mbox-title">🔠 ${sanitize(r.inf)}</div>
+        <div style="font-size:.7rem;color:var(--t3)">${r.reg?'Động từ quy tắc (tự động chia)':'Động từ bất quy tắc'}</div>
+      </div>
+      <button class="mclose" onclick="document.getElementById('conj-popup').remove()">✕</button>
+    </div>
+    <div class="conj-table-wrap">
+      <table class="conj-table">
+        <thead><tr><th>Đại từ</th><th>Präsens</th><th>Präteritum</th><th>Perfekt</th></tr></thead>
+        <tbody>${PRON.map((p,i)=>`<tr${i%2?'':' class="conj-alt"'}><td class="conj-pron">${p}</td><td>${sanitize(r.pres[i])}</td><td>${sanitize(r.prät[i])}</td><td class="conj-perf">${sanitize(r.perf[i])}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:.7rem;display:flex;gap:8px;justify-content:flex-end">
+      <button class="srs-speak-btn" onclick="speakDE('${esc(r.inf)}')">🔊 Nghe</button>
+    </div>
+  </div>`;
+  document.body.appendChild(pop);
+  pop.addEventListener('click',e=>{if(e.target===pop)pop.remove();});
+}
+window.showConjugation=showConjugation;
 
 // ════════════════════════════════════════════════════════
 // 🔴 LIVE DATA — Supabase Realtime (đồng bộ với admin.html)
