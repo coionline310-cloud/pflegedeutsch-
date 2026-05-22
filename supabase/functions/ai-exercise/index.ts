@@ -16,36 +16,40 @@ serve(async (req) => {
       });
     }
 
-    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
+    const apiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 
     const wordList = words.slice(0, 10).map((w: { de: string; vi: string }) => `${w.de} = ${w.vi}`).join("\n");
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: "gpt-4o-mini",
         max_tokens: 1200,
-        system: "You are a German medical vocabulary exercise generator. Return ONLY valid JSON array, no markdown, no explanation.",
-        messages: [{
-          role: "user",
-          content: `Tạo 5 câu bài tập tiếng Đức từ danh sách:\n${wordList}\n\nTrả về JSON array, mỗi phần tử:\n{"type":"mcq"|"fill","q":"câu hỏi","ans":"đáp án tiếng Đức","opts":["A","B","C","D"],"hint":"gợi ý"}\nOpts chỉ cần cho mcq. Không thêm text ngoài JSON.`,
-        }],
+        messages: [
+          {
+            role: "system",
+            content: "You are a German medical vocabulary exercise generator. Return ONLY valid JSON array, no markdown, no explanation.",
+          },
+          {
+            role: "user",
+            content: `Tạo 5 câu bài tập tiếng Đức từ danh sách:\n${wordList}\n\nTrả về JSON array, mỗi phần tử:\n{"type":"mcq"|"fill","q":"câu hỏi","ans":"đáp án tiếng Đức","opts":["A","B","C","D"],"hint":"gợi ý"}\nOpts chỉ cần cho mcq. Không thêm text ngoài JSON.`,
+          },
+        ],
       }),
     });
 
     if (!res.ok) {
       const err = await res.text();
-      throw new Error(`Anthropic API error ${res.status}: ${err}`);
+      throw new Error(`OpenAI API error ${res.status}: ${err}`);
     }
 
     const data = await res.json();
-    const text = data.content?.[0]?.text || "[]";
+    const text = data.choices?.[0]?.message?.content || "[]";
     const m = text.match(/\[[\s\S]*\]/);
     const exercises = m ? JSON.parse(m[0]) : [];
 
