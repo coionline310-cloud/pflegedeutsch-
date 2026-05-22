@@ -2266,13 +2266,21 @@ window.renderLearningPath=renderLearningPath;
 function getCatVideos(){try{return JSON.parse(localStorage.getItem('pd-cat-videos')||'{}');}catch(e){return {};}}
 function setCatVideo(cat,url){const v=getCatVideos();if(url)v[cat]=url;else delete v[cat];localStorage.setItem('pd-cat-videos',JSON.stringify(v));}
 function renderCatVideo(cat){
-  const url=(getCatVideos())[cat];if(!url)return'';
+  const url=(getCatVideos())[cat];
+  const editBtn=`<button class="cv-edit-btn" onclick="openVideoEditor('${sanitize(cat)}');event.stopPropagation()" title="Cài/sửa video">⚙️</button>`;
+  if(!url){
+    return`<div class="cat-video-empty">
+      <span>🎬 Chưa có video bài học</span>
+      <button class="cv-add-btn" onclick="openVideoEditor('${sanitize(cat)}')">+ Cài video</button>
+    </div>`;
+  }
   const m=url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&\s?]+)/);
-  if(!m)return'';
+  if(!m)return`<div class="cat-video-empty"><span>⚠️ URL không hợp lệ</span>${editBtn}</div>`;
   const vid=m[1];
   return`<div class="cat-video-wrap">
     <div class="cat-video-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.cvt').textContent=this.nextElementSibling.style.display==='none'?'▼':'▲'">
-      <span>▶️ Video bài học</span><span class="cvt">▼</span>
+      <span>▶️ Video bài học</span>
+      <div style="display:flex;align-items:center;gap:8px">${editBtn}<span class="cvt">▼</span></div>
     </div>
     <div class="cat-video-body" style="display:none">
       <div class="cat-video-container">
@@ -2281,7 +2289,65 @@ function renderCatVideo(cat){
     </div>
   </div>`;
 }
+function openVideoEditor(cat){
+  document.getElementById('video-overlay')?.remove();
+  const current=(getCatVideos())[cat]||'';
+  const meta=CAT_META[cat]||{ic:'📚',l:cat};
+  const ov=document.createElement('div');
+  ov.id='video-overlay';
+  ov.className='memo-overlay';
+  ov.innerHTML=`
+    <div class="mbox" style="max-width:420px;width:100%">
+      <div style="font-weight:700;font-size:1rem;margin-bottom:1rem">🎬 Cài video — ${sanitize(meta.ic)} ${sanitize(meta.l)}</div>
+      <label style="font-size:.78rem;color:var(--t2);display:block;margin-bottom:4px">Dán link YouTube:</label>
+      <input id="video-url-inp" class="auth-inp" placeholder="https://youtube.com/watch?v=..." value="${sanitize(current)}"
+        style="width:100%;box-sizing:border-box;margin-bottom:.3rem">
+      <div style="font-size:.7rem;color:var(--t3);margin-bottom:1rem">Hỗ trợ: youtube.com/watch?v=… · youtu.be/… · /embed/…</div>
+      <div style="display:flex;gap:8px">
+        <button class="auth-submit-btn" style="flex:1" onclick="saveVideoUI('${sanitize(cat)}')">💾 Lưu</button>
+        ${current?`<button class="auth-submit-btn" style="flex:1;background:rgba(255,77,77,.15);color:var(--red);border-color:var(--red)" onclick="removeVideoUI('${sanitize(cat)}')">🗑️ Xóa</button>`:''}
+        <button class="auth-submit-btn" style="flex:1;background:var(--s3);color:var(--t2)" onclick="document.getElementById('video-overlay').remove()">Huỷ</button>
+      </div>
+    </div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+  setTimeout(()=>document.getElementById('video-url-inp')?.focus(),60);
+}
+function saveVideoUI(cat){
+  const inp=document.getElementById('video-url-inp');
+  const url=inp?inp.value.trim():'';
+  if(url&&!url.match(/(?:youtube\.com|youtu\.be)/)){
+    inp.style.borderColor='var(--red)';inp.focus();return;
+  }
+  setCatVideo(cat,url);
+  document.getElementById('video-overlay')?.remove();
+  // Re-render phần video trong trang danh mục
+  const page=document.getElementById('page-'+cat);
+  if(page){
+    const old=page.querySelector('.cat-video-wrap,.cat-video-empty');
+    const tmp=document.createElement('div');
+    tmp.innerHTML=renderCatVideo(cat);
+    const newEl=tmp.firstElementChild;
+    if(old&&newEl)old.replaceWith(newEl);
+    else if(newEl){const ph=page.querySelector('.ph');if(ph)ph.after(newEl);}
+  }
+  toast(url?'✅ Đã lưu video':'🗑️ Đã xóa video');
+}
+function removeVideoUI(cat){
+  setCatVideo(cat,'');
+  document.getElementById('video-overlay')?.remove();
+  const page=document.getElementById('page-'+cat);
+  if(page){
+    const old=page.querySelector('.cat-video-wrap,.cat-video-empty');
+    const tmp=document.createElement('div');
+    tmp.innerHTML=renderCatVideo(cat);
+    const newEl=tmp.firstElementChild;
+    if(old&&newEl)old.replaceWith(newEl);
+  }
+  toast('🗑️ Đã xóa video');
+}
 window.getCatVideos=getCatVideos;window.setCatVideo=setCatVideo;window.renderCatVideo=renderCatVideo;
+window.openVideoEditor=openVideoEditor;window.saveVideoUI=saveVideoUI;window.removeVideoUI=removeVideoUI;
 
 // ════════════════════════════════════════════════════════
 // 📝 MNEMONIC — Ghi nhớ cá nhân
