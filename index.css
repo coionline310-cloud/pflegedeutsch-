@@ -1016,6 +1016,24 @@ kbd{background:var(--s4);border:1px solid var(--b2);border-radius:5px;padding:1p
 .cat-video-body{padding:.75rem;}
 .cat-video-container{position:relative;padding-bottom:56.25%;height:0;border-radius:var(--r);overflow:hidden;}
 .cat-video-container iframe{position:absolute;top:0;left:0;width:100%;height:100%;border-radius:var(--r);}
+.cat-video-empty{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.6rem 1rem;margin-bottom:1rem;
+  background:var(--s2);border:1px dashed var(--b2);border-radius:var(--rl);
+  font-size:.8rem;color:var(--t3);
+}
+.cv-add-btn{
+  padding:4px 12px;border-radius:20px;border:1px solid var(--b2);
+  background:var(--s3);color:var(--blue);font-size:.75rem;cursor:pointer;
+  transition:var(--transition);
+}
+.cv-add-btn:hover{background:rgba(79,163,255,.12);border-color:var(--blue);}
+.cv-edit-btn{
+  padding:3px 7px;border-radius:8px;border:1px solid var(--b2);
+  background:var(--s3);color:var(--t2);font-size:.75rem;cursor:pointer;
+  transition:var(--transition);
+}
+.cv-edit-btn:hover{background:var(--b1);color:var(--tx);}
 
 /* ══ MNEMONIC ══════════════════════════════════════════ */
 .memo-section{margin-top:.7rem;padding-top:.6rem;border-top:1px solid var(--b1);display:flex;flex-direction:column;align-items:center;gap:6px;}
