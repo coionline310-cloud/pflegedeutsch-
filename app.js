@@ -1894,13 +1894,20 @@ if(!sessionStorage.getItem('_wXP')){
 
   async function pushProgress(){
     if(!_currentUser) return;
-    const {error} = await sb.from('user_progress').upsert({
+    const payload = {
       user_id: _currentUser.id,
       srs_db: SRS_DB,
       game_state: {...GS, bookmarks: [..._bookmarks]},
       updated_at: new Date().toISOString()
-    }, {onConflict:'user_id'});
-    if(error) console.warn('[auth] save error:', error.message);
+    };
+    const {error} = await sb.from('user_progress').upsert(payload, {onConflict:'user_id'});
+    if(error){
+      console.error('[auth] pushProgress failed:', error.message, error.details||'');
+      // Nếu lỗi do thiếu cột — nhắc user chạy migration SQL
+      if(error.message && error.message.includes('column')){
+        console.error('[auth] ⚠️ Bảng user_progress thiếu cột. Hãy chạy file supabase-progress-migration.sql trong Supabase SQL Editor!');
+      }
+    }
   }
 
   async function pullProgress(){
@@ -1908,17 +1915,17 @@ if(!sessionStorage.getItem('_wXP')){
     const {data,error} = await sb.from('user_progress')
       .select('*').eq('user_id',_currentUser.id).single();
     if(error && error.code!=='PGRST116'){
-      console.warn('[auth] load error:', error.message); return;
+      console.warn('[auth] pullProgress error:', error.message); return;
     }
     if(data){
-      if(data.srs_db && Object.keys(data.srs_db).length){
+      if(data.srs_db && typeof data.srs_db==='object' && Object.keys(data.srs_db).length){
         SRS_DB = data.srs_db;
         try{localStorage.setItem('srs_db',JSON.stringify(SRS_DB));}catch(e){}
       }
-      if(data.game_state && Object.keys(data.game_state).length){
+      if(data.game_state && typeof data.game_state==='object' && Object.keys(data.game_state).length){
         const {bookmarks: bm, ...gsData} = data.game_state;
         Object.assign(GS, gsData);
-        if(Array.isArray(bm)){
+        if(Array.isArray(bm) && bm.length){
           _bookmarks = new Set(bm);
           saveBookmarks();
           updateBmBadge();
