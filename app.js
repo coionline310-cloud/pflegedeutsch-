@@ -1923,19 +1923,35 @@ function renderDashboard(){
       </div>`;
   }
 }
-function jumpTo(cat){
+function jumpTo(cat, deWord){
   document.querySelectorAll('.nav-it').forEach(i=>i.classList.remove('active'));
   const ni=document.querySelector(`.nav-it[data-page="${cat}"]`);if(ni)ni.classList.add('active');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+cat).classList.add('active');
   ensurePage(cat);
+  if(deWord){
+    setTimeout(()=>{
+      const allPi=document.querySelectorAll('#page-'+cat+' .pi');
+      for(const el of allPi){
+        const deEl=el.querySelector('.pi-de');
+        if(deEl&&deEl.textContent.trim().startsWith(deWord.trim())){
+          el.scrollIntoView({behavior:'smooth',block:'center'});
+          el.classList.add('word-highlight');
+          setTimeout(()=>el.classList.remove('word-highlight'),2600);
+          break;
+        }
+      }
+    },120);
+  }
 }
 
 // ════════════════════════════════════════════════════════
 // SEARCH
 // ════════════════════════════════════════════════════════
+let _srFocus=-1;
 function doSearch(q){
   const dd=document.getElementById('srDrop');
+  _srFocus=-1;
   q=q.trim().toLowerCase();
   if(!q){dd.classList.remove('open');return;}
   let pool=flatAll();
@@ -1943,15 +1959,57 @@ function doSearch(q){
     const tp=_topics.find(t=>t.key===_activeTopic);
     if(tp){const catKeys=new Set(_dynCats.filter(c=>c.topic_id===tp.id).map(c=>c.key));pool=pool.filter(p=>catKeys.has(p.cat));}
   }
-  const res=pool.filter(p=>p.de.toLowerCase().includes(q)||p.vi.toLowerCase().includes(q)).slice(0,14);
-  function hl(t){return t.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<mark>$1</mark>');}
-  if(!res.length){dd.innerHTML='<div style="padding:1rem;text-align:center;color:var(--t3);font-size:.8rem;">Không tìm thấy kết quả</div>';dd.classList.add('open');return;}
-  dd.innerHTML=res.map(p=>`<div class="sr-it" onclick="jumpTo('${p.cat}');document.getElementById('srDrop').classList.remove('open');document.getElementById('searchInput').value='';">
-    <div class="sr-cat">${CAT_META[p.cat].ic} ${CAT_META[p.cat].l}</div>
-    <div class="sr-de">${hl(p.de)}</div><div class="sr-vi">${hl(p.vi)}</div>
-  </div>`).join('');
+  const res=pool.filter(p=>
+    p.de.toLowerCase().includes(q)||
+    p.vi.toLowerCase().includes(q)||
+    (p.n&&p.n.toLowerCase().includes(q))
+  ).slice(0,16);
+  const esc2=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  function hl(t){return sanitize(t).replace(new RegExp('('+esc2(q)+')','gi'),'<mark>$1</mark>');}
+  function srsTag(de){
+    const s=SRS_DB[de];
+    if(!s)return '<span class="sr-badge new">Chưa học</span>';
+    if(s.due<=Date.now())return '<span class="sr-badge due">Cần ôn</span>';
+    return '<span class="sr-badge learned">Đã học</span>';
+  }
+  if(!res.length){
+    dd.innerHTML='<div class="sr-empty">Không tìm thấy kết quả cho "<b>'+sanitize(q)+'</b>"</div>';
+    dd.classList.add('open');return;
+  }
+  dd.innerHTML=res.map((p,i)=>{
+    const catMeta=CAT_META[p.cat]||{ic:'📚',l:p.cat};
+    return `<div class="sr-it" data-idx="${i}" data-cat="${sanitize(p.cat)}" data-de="${p.de.replace(/"/g,'&quot;')}"
+      onclick="srPick('${sanitize(p.cat)}','${p.de.replace(/'/g,"\\'")}')">
+      <div class="sr-it-body">
+        <div class="sr-cat">${catMeta.ic} ${sanitize(catMeta.l)}</div>
+        <div class="sr-de">${hl(p.de)}</div>
+        <div class="sr-vi">${hl(p.vi)}</div>
+        ${p.n?`<div class="sr-note">💡 ${hl(p.n)}</div>`:''}
+      </div>
+      ${srsTag(p.de)}
+    </div>`;
+  }).join('')+`<div class="sr-footer">${res.length} kết quả · ↑↓ điều hướng · Enter chọn · Esc đóng</div>`;
   dd.classList.add('open');
 }
+function srPick(cat,de){
+  document.getElementById('srDrop').classList.remove('open');
+  document.getElementById('searchInput').value='';
+  _srFocus=-1;
+  jumpTo(cat,de);
+}
+window.srPick=srPick;
+// Keyboard navigation
+document.getElementById('searchInput').addEventListener('keydown',e=>{
+  const dd=document.getElementById('srDrop');
+  const items=dd.querySelectorAll('.sr-it');
+  if(!dd.classList.contains('open')||!items.length)return;
+  if(e.key==='ArrowDown'){e.preventDefault();_srFocus=Math.min(_srFocus+1,items.length-1);}
+  else if(e.key==='ArrowUp'){e.preventDefault();_srFocus=Math.max(_srFocus-1,0);}
+  else if(e.key==='Enter'&&_srFocus>=0){e.preventDefault();items[_srFocus].click();return;}
+  else if(e.key==='Escape'){dd.classList.remove('open');document.getElementById('searchInput').blur();return;}
+  items.forEach((it,i)=>it.classList.toggle('focus',i===_srFocus));
+  if(_srFocus>=0)items[_srFocus].scrollIntoView({block:'nearest'});
+});
 document.addEventListener('click',e=>{if(!e.target.closest('#searchBox'))document.getElementById('srDrop').classList.remove('open');});
 
 // ════════════════════════════════════════════════════════
