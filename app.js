@@ -1614,7 +1614,7 @@ function loadExQ(){
   else if(exType==='match') loadMatch();
   else if(exType==='listening') loadListening();
   else if(exType==='context')   loadContext();
-  else if(exType==='ai')        loadAIExQ();
+
 }
 function showRoundDone(){
   const pct=Math.round(exOk/(exOk+exFail||1)*100);
@@ -2201,98 +2201,6 @@ function renderLearningPath(){
     </div>`;
 }
 window.renderLearningPath=renderLearningPath;
-
-// ════════════════════════════════════════════════════════
-// 🤖 AUTO-GENERATE BÀI TẬP (AI Exercise)
-// ════════════════════════════════════════════════════════
-async function startAIExercise(){
-  if(!flatAll().length){toast('Chưa có từ vựng trong DB!');return;}
-  const menu=document.getElementById('exMenu');
-  const runner=document.getElementById('exRunner');
-  if(menu)menu.classList.add('off');
-  if(runner)runner.classList.add('on');
-  const timerEl=document.getElementById('ex-timer');if(timerEl)timerEl.style.display='none';
-  document.getElementById('ex-ok').textContent='0 đúng';
-  document.getElementById('ex-fail').textContent='0 sai';
-  document.getElementById('ex-streak').textContent='🔥 0';
-  document.getElementById('ex-xp').textContent='+0 XP';
-  document.getElementById('exContent').innerHTML=`<div style="text-align:center;padding:3rem;color:var(--t2)"><div style="font-size:2.5rem;margin-bottom:.6rem">🤖</div><div style="font-size:.9rem">AI đang tạo bài tập...</div></div>`;
-  try{
-    const sbUrl=window.SUPABASE_URL||'';
-    const sbKey=window.SUPABASE_ANON_KEY||'';
-    const words=flatAll().slice(0,10).map(w=>({de:w.de,vi:w.vi}));
-    const res=await fetch(`${sbUrl}/functions/v1/ai-exercise`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${sbKey}`,'apikey':sbKey},
-      body:JSON.stringify({words})
-    });
-    const data=await res.json();
-    if(data.error)throw new Error(data.error);
-    const pool=data.exercises||[];
-    if(!pool.length)throw new Error('AI không trả về bài tập hợp lệ');
-    exType='ai';exPool=pool.map(q=>({de:q.ans,vi:q.q,_ai:q}));
-    exIdx=0;exOk=0;exFail=0;exStreak=0;exRoundXP=0;
-    updateExScore();loadExQ();
-  }catch(e){
-    document.getElementById('exContent').innerHTML=`<div style="text-align:center;padding:3rem;color:var(--red)">❌ Không thể tạo bài tập AI.<br><small style="color:var(--t2)">${sanitize(e.message||'Lỗi kết nối')}</small><br><br><button class="ex-back" onclick="backToExMenu()">← Quay lại</button></div>`;
-  }
-}
-window.startAIExercise=startAIExercise;
-
-function loadAIExQ(){
-  if(exIdx>=exPool.length){showRoundDone();return;}
-  const q=exPool[exIdx]._ai;
-  const content=document.getElementById('exContent');if(!content)return;
-  if(q.type==='fill'){
-    content.innerHTML=`
-      <div class="ex-hdr">
-        <div class="ex-ql">🤖 AI · Điền từ ${exIdx+1}/${exPool.length}</div>
-        <div class="ex-qt">${sanitize(q.q)}</div>
-        ${q.hint?`<div class="ex-qh">💡 ${sanitize(q.hint)}</div>`:''}
-      </div>
-      <input class="ex-fi" id="ai-inp" placeholder="Nhập tiếng Đức..." onkeydown="if(event.key==='Enter')checkAIFill()">
-      <button class="ex-sub" onclick="checkAIFill()">Kiểm tra</button>
-      <div class="ex-fb" id="ai-fb"></div>
-      <button class="ex-nxt" id="ai-nxt" onclick="nextAIQ()">Câu tiếp →</button>`;
-    setTimeout(()=>document.getElementById('ai-inp')?.focus(),50);
-  } else {
-    const opts=q.opts&&q.opts.length?q.opts:[q.ans];
-    content.innerHTML=`
-      <div class="ex-hdr">
-        <div class="ex-ql">🤖 AI · Trắc nghiệm ${exIdx+1}/${exPool.length}</div>
-        <div class="ex-qt">${sanitize(q.q)}</div>
-      </div>
-      <div class="ex-opts">
-        ${opts.map(o=>`<button class="ex-opt" onclick="checkAIOpt(this,'${esc(o)}','${esc(q.ans)}')">${sanitize(o)}</button>`).join('')}
-      </div>
-      <div class="ex-fb" id="ai-fb"></div>
-      <button class="ex-nxt" id="ai-nxt" onclick="nextAIQ()">Câu tiếp →</button>`;
-  }
-}
-function checkAIFill(){
-  const inp=document.getElementById('ai-inp');if(!inp||inp.disabled)return;
-  const q=exPool[exIdx]._ai;
-  const user=inp.value.trim().toLowerCase();
-  const correct=q.ans.toLowerCase();
-  const isOk=user===correct||user===correct.replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss');
-  inp.disabled=true;
-  const fb=document.getElementById('ai-fb');
-  const nxt=document.getElementById('ai-nxt');
-  if(isOk){inp.classList.add('cor');exOk++;exStreak++;exRoundXP+=10;addXP(10,'AI bài tập đúng');fb.className='ex-fb on ok';fb.textContent='✓ Chính xác!';}
-  else{inp.classList.add('wr');exFail++;exStreak=0;fb.className='ex-fb on fail';fb.textContent=`✗ Đáp án: ${q.ans}`;}
-  if(nxt)nxt.classList.add('on');
-  updateExScore();
-}
-function checkAIOpt(btn,opt,ans){
-  document.querySelectorAll('#exContent .ex-opt').forEach(b=>b.disabled=true);
-  const fb=document.getElementById('ai-fb');const nxt=document.getElementById('ai-nxt');
-  if(opt===ans){btn.classList.add('cor');exOk++;exStreak++;exRoundXP+=10;addXP(10,'AI bài tập đúng');fb.className='ex-fb on ok';fb.textContent='✓ Chính xác!';}
-  else{btn.classList.add('wr');exFail++;exStreak=0;document.querySelectorAll('#exContent .ex-opt').forEach(b=>{if(b.textContent.trim()===ans)b.classList.add('cor');});fb.className='ex-fb on fail';fb.textContent=`✗ Đáp án: ${ans}`;}
-  if(nxt)nxt.classList.add('on');
-  updateExScore();
-}
-function nextAIQ(){exIdx++;exAnswered=false;loadAIExQ();}
-window.checkAIFill=checkAIFill;window.checkAIOpt=checkAIOpt;window.nextAIQ=nextAIQ;
 
 // ════════════════════════════════════════════════════════
 // 🎬 VIDEO BÀI HỌC (Category Videos)

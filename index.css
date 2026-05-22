@@ -932,7 +932,6 @@ kbd{background:var(--s4);border:1px solid var(--b2);border-radius:5px;padding:1p
 .notif-time-inp:focus{border-color:var(--blue);}
 
 /* ══ MOCK EXAM ══════════════════════════════════════════ */
-.ex-card-mock{grid-column:1/-1;}
 .mock-timer{background:rgba(255,77,77,.12);color:var(--red);font-weight:700;padding:3px 9px;border-radius:20px;font-size:.75rem;font-variant-numeric:tabular-nums;}
 
 /* ══ KEYFRAME ANIMATIONS ══════════════════════════════════ */
