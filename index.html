@@ -2,6 +2,7 @@
 <html lang="vi" data-theme="dark">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src https://*.supabase.co wss://*.supabase.co https://api.openai.com; media-src blob: https:; worker-src blob:;">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PflegeDeutsch V4 Pro</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Lora:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
@@ -113,6 +114,7 @@
         <div class="ex-card" style="--ec:var(--teal)"   onclick="startEx('match')"><div class="ex-ic">🔗</div><div class="ex-tit">Ghép đôi</div><div class="ex-desc">Nối Đức ↔ Việt tương ứng</div><div class="ex-meta">🎮 Tương tác</div></div>
         <div class="ex-card" style="--ec:var(--yellow)" onclick="startEx('listening')"><div class="ex-ic">👂</div><div class="ex-tit">Nghe & Chọn</div><div class="ex-desc">Text-to-Speech tiếng Đức</div><div class="ex-meta">🔊 Luyện nghe</div></div>
         <div class="ex-card" style="--ec:var(--orange)" onclick="startEx('context')"><div class="ex-ic">🏥</div><div class="ex-tit">Tình huống</div><div class="ex-desc">Chọn câu đúng trong lâm sàng</div><div class="ex-meta">🩺 Thực tế</div></div>
+        <div class="ex-card ex-card-mock" style="--ec:var(--red)" onclick="startMockExam()"><div class="ex-ic">⏱️</div><div class="ex-tit">Thi thử</div><div class="ex-desc">20 câu · 5 phút · không gợi ý</div><div class="ex-meta">🎯 Thực chiến</div></div>
       </div>
     </div>
     <div class="ex-runner" id="exRunner">
@@ -122,6 +124,7 @@
         <span class="ep fail" id="ex-fail">0 sai</span>
         <span class="ep streak" id="ex-streak">🔥 0</span>
         <span class="ep xp" id="ex-xp">+0 XP</span>
+        <span class="ep mock-timer" id="ex-timer" style="display:none">⏱ 5:00</span>
         <button style="margin-left:auto;background:transparent;border:1px solid var(--b2);color:var(--t2);padding:3px 8px;border-radius:6px;font-size:.7rem;" onclick="resetEx()">↺ Làm lại</button>
       </div>
       <div id="exContent"></div>

@@ -652,6 +652,42 @@ kbd{background:var(--s4);border:1px solid var(--b2);border-radius:4px;padding:1p
   box-shadow:0 2px 8px rgba(0,0,0,.25);
 }
 
+/* ══ SMART SRS BUTTON ═══════════════════════════════════ */
+.srs-smart-btn{
+  width:100%;margin-top:.5rem;padding:.7rem 1rem;
+  background:linear-gradient(135deg,rgba(159,110,245,.15),rgba(79,163,255,.1));
+  border:1px solid rgba(159,110,245,.35);color:var(--purple);
+  border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer;
+  transition:all .15s;
+}
+.srs-smart-btn:hover{background:linear-gradient(135deg,rgba(159,110,245,.25),rgba(79,163,255,.18));border-color:var(--purple);}
+
+/* ══ XP ACTIVITY CHART ══════════════════════════════════ */
+.week-chart{display:flex;align-items:flex-end;gap:6px;height:80px;padding:0 2px;}
+.wc-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.wc-bar-wrap{flex:1;width:100%;display:flex;align-items:flex-end;}
+.wc-bar{width:100%;min-height:3px;border-radius:4px 4px 0 0;background:var(--blue);opacity:.55;transition:height .5s;}
+.wc-bar.wc-today{opacity:1;background:var(--yellow);}
+.wc-lbl{font-size:.6rem;color:var(--t3);font-weight:500;}
+.wc-lbl.wc-today{color:var(--yellow);font-weight:700;}
+.wc-val{font-size:.58rem;color:var(--t3);min-height:10px;}
+
+/* ══ DAILY REMINDER TOGGLE ══════════════════════════════ */
+.notif-row{display:flex;align-items:center;gap:10px;padding:.4rem 0;flex-wrap:wrap;}
+.notif-toggle{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;}
+.notif-toggle input{opacity:0;width:0;height:0;}
+.notif-slider{position:absolute;inset:0;background:var(--b3);border-radius:11px;cursor:pointer;transition:.2s;}
+.notif-slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;}
+.notif-toggle input:checked+.notif-slider{background:var(--blue);}
+.notif-toggle input:checked+.notif-slider:before{transform:translateX(18px);}
+.notif-lbl{font-size:.8rem;color:var(--t2);}
+.notif-time-inp{background:var(--s3);border:1px solid var(--b2);color:var(--tx);padding:3px 8px;border-radius:6px;font-size:.78rem;outline:none;cursor:pointer;}
+.notif-time-inp:focus{border-color:var(--blue);}
+
+/* ══ MOCK EXAM ══════════════════════════════════════════ */
+.ex-card-mock{grid-column:1/-1;} /* span full row on mobile */
+.mock-timer{background:rgba(255,77,77,.12);color:var(--red);font-weight:700;padding:2px 8px;border-radius:6px;font-size:.75rem;font-variant-numeric:tabular-nums;}
+
 @media(max-width:720px){
   .bottom-nav{display:block;}
   .main{padding-bottom:56px;}

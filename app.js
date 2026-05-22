@@ -20,6 +20,8 @@ let _topics=[];
 let _activeTopic=null;
 let _dataFromDB=false;
 let _bookmarks=new Set();
+// XSS sanitizer — dùng cho mọi nội dung từ DB trước khi đưa vào innerHTML
+function sanitize(s){if(typeof s!=='string')return String(s||'');return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function loadBookmarks(){try{_bookmarks=new Set(JSON.parse(localStorage.getItem('pd-bookmarks')||'[]'));}catch(e){_bookmarks=new Set();}updateBmBadge();}
 function saveBookmarks(){localStorage.setItem('pd-bookmarks',JSON.stringify([..._bookmarks]));}
 function updateBmBadge(){const el=document.getElementById('cnt-bookmarks');if(el)el.textContent=_bookmarks.size||'';}
@@ -464,15 +466,21 @@ let ALL_BADGES=[
   {id:"xp2000",      emoji:"💫", name:"2000 XP",           cond:s=>s.xp>=2000},
   {id:"xp5000",      emoji:"🌌", name:"5000 XP · Pflegeprofi",cond:s=>s.xp>=5000},
 ];
-let GS={xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:''};
+let GS={xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:'',xpHistory:[]};
 
 function addXP(n,label=''){
   const prev=getLevel(GS.xp);
   GS.xp+=n;
+  // Track daily XP history (last 30 days)
+  const today=new Date().toISOString().slice(0,10);
+  if(!GS.xpHistory)GS.xpHistory=[];
+  const last=GS.xpHistory[GS.xpHistory.length-1];
+  if(last&&last.d===today)last.x+=n;
+  else{GS.xpHistory.push({d:today,x:n});if(GS.xpHistory.length>30)GS.xpHistory.shift();}
   const cur=getLevel(GS.xp);
   updateXPUI();
   if(label) toast(`+${n} XP · ${label}`);
-  if(cur.min>prev.min) showLevelUp(cur);
+  if(cur.min>prev.min){showLevelUp(cur);checkCertificate();}
   checkBadges();
   if(window._scheduleCloudSave) window._scheduleCloudSave();
 }
@@ -561,6 +569,43 @@ function buildSRSQueue(cat,newLimit){
   const due=shuffle(pool.filter(p=>{const s=SRS_DB[p.de];return s&&s.due<=now;}));
   const nw=pool.filter(p=>!SRS_DB[p.de]).slice(0,newLimit);
   return [...due,...nw];
+}
+
+// ── Smart Queue: phân tích điểm yếu từ SRS_DB ────────────
+function getWeakItems(){
+  return flatAll()
+    .filter(p=>{const s=SRS_DB[p.de];return s&&s.ease<2.2;})
+    .sort((a,b)=>(SRS_DB[a.de]?.ease||0)-(SRS_DB[b.de]?.ease||0));
+}
+function startSmartSRS(){
+  const weak=getWeakItems();
+  if(!weak.length){toast('Chưa có dữ liệu điểm yếu. Hãy ôn SRS vài buổi trước!');return;}
+  const queue=shuffle(weak).slice(0,20);
+  srsQ.queue=queue;srsQ.idx=0;srsQ.ok=0;srsQ.done=0;srsQ.xpEarned=0;srsQ.flipped=false;
+  renderSRSCard();
+}
+window.startSmartSRS=startSmartSRS;
+
+// ── XP Chart 7 ngày gần nhất ─────────────────────────────
+function renderWeekChart(){
+  const now=new Date();
+  const days=[],labels=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(now);d.setDate(d.getDate()-i);
+    days.push(d.toISOString().slice(0,10));
+    labels.push(['CN','T2','T3','T4','T5','T6','T7'][d.getDay()]);
+  }
+  const hist=GS.xpHistory||[];
+  const vals=days.map(d=>{const e=hist.find(h=>h.d===d);return e?e.x:0;});
+  const today=now.toISOString().slice(0,10);
+  const max=Math.max(...vals,10);
+  return `<div class="week-chart">${vals.map((v,i)=>`
+    <div class="wc-col">
+      <div class="wc-bar-wrap"><div class="wc-bar${days[i]===today?' wc-today':''}" style="height:${Math.round(v/max*100)}%" title="${v} XP"></div></div>
+      <div class="wc-lbl${days[i]===today?' wc-today':''}">${labels[i]}</div>
+      <div class="wc-val">${v||''}</div>
+    </div>`).join('')}
+  </div>`;
 }
 
 // ════════════════════════════════════════════════════════
@@ -719,7 +764,7 @@ function buildSidebarCats(catsList){
   const vocabCats=visible.filter(c=>c.section!=='communication');
   const makeNavHTML=(cats,colorOff)=>cats.map((c,i)=>{
     const color=c.color||CAT_COLORS[(colorOff+i)%CAT_COLORS.length];
-    return `<div class="nav-it" data-page="${c.key}" style="--tc:${color}" onclick="navTo('${c.key}')"><span class="nav-ic">${c.icon}</span>${c.label}<span class="nav-badge" id="cnt-${c.key}"></span></div>`;
+    return `<div class="nav-it" data-page="${sanitize(c.key)}" style="--tc:${sanitize(color)}" onclick="navTo('${sanitize(c.key)}')"><span class="nav-ic">${sanitize(c.icon)}</span>${sanitize(c.label)}<span class="nav-badge" id="cnt-${sanitize(c.key)}"></span></div>`;
   }).join('');
   commEl.innerHTML=makeNavHTML(commCats,0);
   vocabEl.innerHTML=makeNavHTML(vocabCats,4);
@@ -764,7 +809,7 @@ function renderTopicTabs(){
   if(!el) return;
   if(!_topics.length){el.style.display='none';return;}
   let html=`<button class="topic-tab${_activeTopic===null?' active':''}" onclick="navToTopic(null)">🌐 Tất cả</button>`;
-  html+=_topics.map(t=>`<button class="topic-tab${_activeTopic===t.key?' active':''}" onclick="navToTopic('${t.key}')" style="--tc:${t.color||'var(--blue)'};">${t.icon} ${t.label}</button>`).join('');
+  html+=_topics.map(t=>`<button class="topic-tab${_activeTopic===t.key?' active':''}" onclick="navToTopic('${sanitize(t.key)}')" style="--tc:${sanitize(t.color||'var(--blue)')}">${sanitize(t.icon)} ${sanitize(t.label)}</button>`).join('');
   el.innerHTML=html;
   el.style.cssText='display:flex!important;gap:6px;padding:.55rem 1.1rem .45rem;background:var(--s1);border-bottom:1px solid var(--b1);overflow-x:auto;scrollbar-width:none;flex-shrink:0;';
   console.info('[live] renderTopicTabs called, topics:', _topics.length);
@@ -877,8 +922,8 @@ function renderListH(cat,isV){
     const safeNote=(p.n||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
     const safeEx=(p.ex||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
     const dataStr=`data-de="${safeDE}" data-vi="${safeVI}" data-note="${safeNote}" data-ex="${safeEx}"`;
-    const note=p.n?('<div class="'+(isV?'vi2-n':'pi-note')+'">💡 '+p.n+'</div>'):'';
-    const ex=p.ex?('<div class="pi-ex">📝 '+p.ex+'</div>'):'';
+    const note=p.n?('<div class="'+(isV?'vi2-n':'pi-note')+'">💡 '+sanitize(p.n)+'</div>'):'';
+    const ex=p.ex?('<div class="pi-ex">📝 '+sanitize(p.ex)+'</div>'):'';
     const spk=`<button class="pi-speak" data-de="${safeDE}" onclick="speakDE(this.dataset.de);event.stopPropagation();" title="Phát âm">🔊</button>`;
     const isBm=_bookmarks.has(p.de);
     const bm=`<button class="bm-btn${isBm?' active':''}" data-de="${safeDE}" onclick="toggleBookmark(this.dataset.de,this);event.stopPropagation();" title="${isBm?'Bỏ yêu thích':'Thêm yêu thích'}">${isBm?'❤️':'🤍'}</button>`;
@@ -1219,6 +1264,7 @@ function renderSRS(){
       <button class="srs-start-btn srs-start-big" onclick="startSRSSession()" ${dueCount===0&&newCount===0?'disabled':''}>
         ${dueCount>0?`🔁 Ôn ${dueCount} thẻ hôm nay`:`✨ Học ${Math.min(srsQ.newLimit,newCount)} thẻ mới`}
       </button>
+      ${(()=>{const wk=getWeakItems();return wk.length?`<button class="srs-start-btn srs-smart-btn" onclick="startSmartSRS()">🎯 Học thông minh · ${wk.length} từ điểm yếu</button>`:'';})()}
       ${dueCount===0&&newCount===0?'<div class="srs-allgood">🎉 Tuyệt vời! Hôm nay bạn đã hoàn thành tất cả. Quay lại ngày mai nhé!</div>':''}
       ${totalReviewed>0?`<div class="srs-prog-row"><div class="srs-prog-bar" style="width:${Math.round(learnedCount/all.length*100)}%"></div></div><div class="srs-prog-lbl">${learnedCount}/${all.length} thẻ đã học (${Math.round(learnedCount/all.length*100)}%)</div>`:''}
     </div>`;
@@ -1496,8 +1542,56 @@ function startEx(type){
   document.getElementById('exRunner').classList.add('on');
   updateExScore();loadExQ();
 }
-function backToExMenu(){clearTimeout(autoT);document.getElementById('exMenu').classList.remove('off');document.getElementById('exRunner').classList.remove('on');}
-function resetEx(){clearTimeout(autoT);exPool=shuffle(flatAll()).slice(0,EX_ROUND);exIdx=0;exOk=0;exFail=0;exStreak=0;exRoundXP=0;updateExScore();loadExQ();}
+let _mockInterval=null,_mockTimeLeft=0;
+function startMockExam(){
+  exType='mock';exPool=shuffle(flatAll()).slice(0,20);
+  exIdx=0;exOk=0;exFail=0;exStreak=0;exRoundXP=0;
+  document.getElementById('exMenu').classList.add('off');
+  document.getElementById('exRunner').classList.add('on');
+  const timerEl=document.getElementById('ex-timer');
+  if(timerEl)timerEl.style.display='';
+  _mockTimeLeft=300;
+  clearInterval(_mockInterval);
+  _mockInterval=setInterval(()=>{
+    _mockTimeLeft--;
+    const m=Math.floor(_mockTimeLeft/60),s=_mockTimeLeft%60;
+    const el=document.getElementById('ex-timer');
+    if(el)el.textContent=`⏱ ${m}:${String(s).padStart(2,'0')}`;
+    if(_mockTimeLeft<=0){clearInterval(_mockInterval);showMockDone(true);}
+  },1000);
+  updateExScore();loadExQ();
+}
+function showMockDone(timeout=false){
+  clearInterval(_mockInterval);
+  const timerEl=document.getElementById('ex-timer');if(timerEl)timerEl.style.display='none';
+  const total=exOk+exFail||1,pct=Math.round(exOk/total*100);
+  const grade=pct>=90?'🏆 Xuất sắc':pct>=75?'🥇 Giỏi':pct>=60?'🥈 Khá':pct>=45?'🥉 Trung bình':'💪 Cần cố gắng thêm';
+  GS.exDone+=exPool.length;if(pct===100)GS.exPerfectRound++;checkBadges();
+  const bonusXP=Math.round(pct/5);addXP(bonusXP,'Thi thử');
+  document.getElementById('exContent').innerHTML=`
+    <div style="text-align:center;padding:2rem 1rem">
+      <div style="font-size:3rem;margin-bottom:.5rem">${grade.split(' ')[0]}</div>
+      <div style="font-size:1.2rem;font-weight:700;margin-bottom:.2rem">${grade.split(' ').slice(1).join(' ')}</div>
+      ${timeout?'<div style="color:var(--red);font-size:.8rem;margin-bottom:.5rem">⏰ Hết giờ!</div>':''}
+      <div style="font-size:2rem;font-weight:800;color:${pct>=60?'var(--teal)':'var(--orange)'};margin:.8rem 0">${pct}%</div>
+      <div style="font-size:.85rem;color:var(--t2);margin-bottom:1.2rem">${exOk}/${total} câu đúng · +${bonusXP} XP</div>
+      <div style="display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap">
+        <button class="ib pri" onclick="startMockExam()">🔄 Thi lại</button>
+        <button class="ib" onclick="backToExMenu()">← Quay lại</button>
+      </div>
+    </div>`;
+}
+window.startMockExam=startMockExam;
+function backToExMenu(){
+  clearTimeout(autoT);clearInterval(_mockInterval);
+  const timerEl=document.getElementById('ex-timer');if(timerEl)timerEl.style.display='none';
+  document.getElementById('exMenu').classList.remove('off');document.getElementById('exRunner').classList.remove('on');
+}
+function resetEx(){
+  clearTimeout(autoT);clearInterval(_mockInterval);
+  const timerEl=document.getElementById('ex-timer');if(timerEl)timerEl.style.display='none';
+  exPool=shuffle(flatAll()).slice(0,EX_ROUND);exIdx=0;exOk=0;exFail=0;exStreak=0;exRoundXP=0;updateExScore();loadExQ();
+}
 function updateExScore(){
   document.getElementById('ex-ok').textContent=exOk+' đúng';
   document.getElementById('ex-fail').textContent=exFail+' sai';
@@ -1508,9 +1602,9 @@ function updateExScore(){
 }
 function loadExQ(){
   clearTimeout(autoT);
-  if(exIdx>=exPool.length){showRoundDone();return;}
+  if(exIdx>=exPool.length){exType==='mock'?showMockDone():showRoundDone();return;}
   exAnswered=false;updateExScore();
-  if(exType==='mcq')       loadMCQ();
+  if(exType==='mcq'||exType==='mock') loadMCQ();
   else if(exType==='de2vi') loadFill('de2vi');
   else if(exType==='vi2de') loadFill('vi2de');
   else if(exType==='match') loadMatch();
@@ -1764,13 +1858,64 @@ function renderDashboard(){
   const suggest=[...dueFirst,...newItems];
   document.getElementById('dash-suggest').innerHTML=suggest.map((p,i)=>{
     const sTag=getSRSTag(p);
-    return `<div class="sug-item" onclick="jumpTo('${p.cat}')">
-      <div class="sug-dot" style="background:${CAT_META[p.cat].c}"></div>
-      <div><div class="sug-de">${p.de} <span class="srs-due-badge" style="${sTag.tag==='due'?'':'background:rgba(79,163,255,.1);color:var(--blue);'}">${sTag.label}</span></div>
-      <div class="sug-vi">${p.vi}</div></div>
-      <div class="sug-cat">${CAT_META[p.cat].l}</div>
+    return `<div class="sug-item" onclick="jumpTo('${sanitize(p.cat)}')">
+      <div class="sug-dot" style="background:${CAT_META[p.cat]?.c||'var(--blue)'}"></div>
+      <div><div class="sug-de">${sanitize(p.de)} <span class="srs-due-badge" style="${sTag.tag==='due'?'':'background:rgba(79,163,255,.1);color:var(--blue);'}">${sTag.label}</span></div>
+      <div class="sug-vi">${sanitize(p.vi)}</div></div>
+      <div class="sug-cat">${sanitize(CAT_META[p.cat]?.l||p.cat)}</div>
     </div>`;
   }).join('');
+
+  // ── XP Activity Chart ────────────────────────────────
+  let chartSec=document.getElementById('dash-xp-chart-sec');
+  if(!chartSec){
+    chartSec=document.createElement('div');
+    chartSec.id='dash-xp-chart-sec';
+    chartSec.className='prog-section';
+    const suggest=document.querySelector('.sug-section');
+    suggest?.parentNode.insertBefore(chartSec,suggest);
+  }
+  chartSec.innerHTML=`<div class="prog-title">📈 Hoạt động 7 ngày gần nhất</div>${renderWeekChart()}`;
+
+  // ── Thông báo nhắc học ────────────────────────────────
+  let notifSec=document.getElementById('dash-notif-sec');
+  if(!notifSec){
+    notifSec=document.createElement('div');
+    notifSec.id='dash-notif-sec';
+    notifSec.className='prog-section';
+    chartSec.after(notifSec);
+  }
+  const notifOn=localStorage.getItem('pd-notif-on')==='1';
+  const notifTime=localStorage.getItem('pd-notif-time')||'08:00';
+  const notifSupported='Notification' in window;
+  notifSec.innerHTML=`<div class="prog-title">🔔 Nhắc học hàng ngày</div>
+    <div class="notif-row">
+      ${notifSupported?`
+        <label class="notif-toggle">
+          <input type="checkbox" ${notifOn?'checked':''} onchange="toggleReminder(this.checked)">
+          <span class="notif-slider"></span>
+        </label>
+        <span class="notif-lbl">${notifOn?'Đang bật':'Tắt'}</span>
+        ${notifOn?`<input type="time" class="notif-time-inp" value="${notifTime}" onchange="saveReminderTime(this.value)">`:''}`
+      :'<span style="color:var(--t3);font-size:.8rem">Trình duyệt không hỗ trợ thông báo</span>'}
+    </div>`;
+
+  // ── Chứng chỉ ────────────────────────────────────────
+  const curLv=getLevel(GS.xp);
+  if(curLv.min>=1000){
+    let certSec=document.getElementById('dash-cert-sec');
+    if(!certSec){
+      certSec=document.createElement('div');
+      certSec.id='dash-cert-sec';
+      certSec.className='prog-section';
+      notifSec.after(certSec);
+    }
+    certSec.innerHTML=`<div class="prog-title">🎓 Chứng chỉ hoàn thành</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px;font-size:.82rem;color:var(--t2)">Bạn đã đạt <strong>${curLv.emoji} ${curLv.name}</strong> — đủ điều kiện nhận chứng chỉ!</div>
+        <button class="ib pri" onclick="generateCertificate()">🎓 Tải chứng chỉ</button>
+      </div>`;
+  }
 }
 function jumpTo(cat){
   document.querySelectorAll('.nav-it').forEach(i=>i.classList.remove('active'));
@@ -1862,6 +2007,110 @@ if(!sessionStorage.getItem('_wXP')){
 }
 
 // ════════════════════════════════════════════════════════
+// 🔔 NHẮC HỌC HÀNG NGÀY (Daily Reminder)
+// ════════════════════════════════════════════════════════
+function checkDailyReminder(){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  if(localStorage.getItem('pd-notif-on')!=='1')return;
+  const time=localStorage.getItem('pd-notif-time')||'08:00';
+  const now=new Date();
+  const [h,m]=time.split(':').map(Number);
+  const todayStr=now.toDateString();
+  if(localStorage.getItem('pd-notif-last')===todayStr)return;
+  const target=new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,m,0);
+  if(now>=target){
+    try{
+      new Notification('📚 PflegeDeutsch — Đến giờ học!',{
+        body:`Duy trì streak ${GS.streak} ngày 🔥 — Hôm nay ôn ${countDue('all')||'các'} thẻ SRS!`,
+        icon:'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2226%22 font-size=%2228%22>📚</text></svg>'
+      });
+      localStorage.setItem('pd-notif-last',todayStr);
+    }catch(e){}
+  }
+}
+function toggleReminder(on){
+  if(on){
+    Notification.requestPermission().then(perm=>{
+      if(perm==='granted'){
+        localStorage.setItem('pd-notif-on','1');
+        toast('🔔 Đã bật nhắc học!');
+        renderDashboard();
+      } else {
+        localStorage.setItem('pd-notif-on','0');
+        toast('Trình duyệt không cấp quyền thông báo');
+        renderDashboard();
+      }
+    });
+  } else {
+    localStorage.setItem('pd-notif-on','0');
+    toast('🔕 Đã tắt nhắc học');
+    renderDashboard();
+  }
+}
+function saveReminderTime(t){
+  localStorage.setItem('pd-notif-time',t);
+  toast('✓ Đã lưu giờ nhắc: '+t);
+}
+window.toggleReminder=toggleReminder;
+window.saveReminderTime=saveReminderTime;
+// Kiểm tra khi tab hiển thị lại
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkDailyReminder();});
+// Kiểm tra sau khi app load xong
+setTimeout(checkDailyReminder,3000);
+
+// ════════════════════════════════════════════════════════
+// 🏆 CHỨNG CHỈ HOÀN THÀNH
+// ════════════════════════════════════════════════════════
+function checkCertificate(){
+  const lv=getLevel(GS.xp);
+  if(lv.min>=1000) toast('🎓 Bạn đủ điều kiện nhận chứng chỉ! Xem Dashboard.',4000);
+}
+function generateCertificate(){
+  const lv=getLevel(GS.xp);
+  const user=window.sbLive?window._certUser:null;
+  const name=user?.user_metadata?.display_name||user?.email?.split('@')[0]||'Học viên';
+  const date=new Date().toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const w=window.open('','_blank','width=780,height=580');
+  if(!w){toast('Trình duyệt chặn cửa sổ mới. Hãy cho phép popup.');return;}
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Chứng chỉ PflegeDeutsch</title>
+  <style>
+    body{margin:0;padding:32px;background:#f0f4ff;font-family:Georgia,serif;color:#1a2340;}
+    .cert{background:#fff;border:6px double #2563eb;border-radius:12px;padding:40px 48px;max-width:660px;margin:auto;text-align:center;box-shadow:0 8px 32px rgba(37,99,235,.15);}
+    .logo{font-size:2rem;font-weight:900;color:#2563eb;letter-spacing:-.02em;margin-bottom:4px;}
+    .cert-title{font-size:.85rem;text-transform:uppercase;letter-spacing:.15em;color:#64748b;margin-bottom:28px;}
+    .cert-present{font-size:.9rem;color:#64748b;margin-bottom:6px;}
+    .cert-name{font-size:2.1rem;font-weight:700;color:#1e3a8a;border-bottom:2px solid #2563eb;display:inline-block;padding-bottom:6px;margin-bottom:20px;}
+    .cert-body{font-size:.95rem;line-height:1.9;color:#334155;margin-bottom:20px;}
+    .cert-stats{display:flex;justify-content:center;gap:32px;margin:18px 0;padding:14px;background:#f0f7ff;border-radius:8px;}
+    .cert-stat{text-align:center;}
+    .cert-stat-n{font-size:1.6rem;font-weight:800;color:#2563eb;}
+    .cert-stat-l{font-size:.72rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;}
+    .cert-level{font-size:1.3rem;font-weight:700;color:#7c3aed;margin:12px 0;}
+    .cert-date{font-size:.8rem;color:#94a3b8;margin-top:24px;}
+    .print-btn{margin-top:20px;padding:10px 28px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:.9rem;cursor:pointer;font-family:sans-serif;}
+    @media print{.print-btn{display:none;}}
+  </style></head><body>
+  <div class="cert">
+    <div class="logo">🇩🇪 PflegeDeutsch</div>
+    <div class="cert-title">Zertifikat · Chứng nhận hoàn thành</div>
+    <div class="cert-present">Chứng nhận rằng</div>
+    <div class="cert-name">${name}</div>
+    <div class="cert-body">đã hoàn thành chương trình học<br><strong>Tiếng Đức Y tế — PflegeDeutsch V4 Pro</strong></div>
+    <div class="cert-stats">
+      <div class="cert-stat"><div class="cert-stat-n">${GS.xp}</div><div class="cert-stat-l">XP tích lũy</div></div>
+      <div class="cert-stat"><div class="cert-stat-n">${GS.mastered}</div><div class="cert-stat-l">Từ đã thuộc</div></div>
+      <div class="cert-stat"><div class="cert-stat-n">${GS.streak}</div><div class="cert-stat-l">Ngày streak</div></div>
+    </div>
+    <div class="cert-level">${lv.emoji} Cấp độ: ${lv.name}</div>
+    <div class="cert-date">Ngày cấp: ${date}</div>
+  </div>
+  <div style="text-align:center"><button class="print-btn" onclick="window.print()">🖨️ In / Lưu PDF</button></div>
+  </body></html>`);
+  w.document.close();
+}
+window.generateCertificate=generateCertificate;
+
+// ════════════════════════════════════════════════════════
 // 🔴 LIVE DATA — Supabase Realtime (đồng bộ với admin.html)
 // ════════════════════════════════════════════════════════
 (function liveDataLayer(){
@@ -1875,7 +2124,8 @@ if(!sessionStorage.getItem('_wXP')){
     return;
   }
   const sb = window.supabase.createClient(URL, KEY, {
-    realtime: { params: { eventsPerSecond: 10 } }
+    realtime: { params: { eventsPerSecond: 10 } },
+    auth: { flowType: 'pkce', autoRefreshToken: true, persistSession: true }
   });
   window.sbLive = sb;
 
@@ -1884,6 +2134,7 @@ if(!sessionStorage.getItem('_wXP')){
   // ════════════════════════════════════════════════════════
   let _currentUser = null;
   let _cloudSaveTimer = null;
+  let _loginAttempts = 0, _loginLockUntil = 0;
 
   // Debounced cloud save (2s after last change)
   function scheduleCloudSave(){
@@ -1945,6 +2196,7 @@ if(!sessionStorage.getItem('_wXP')){
 
   function renderAuthUI(user){
     _currentUser = user;
+    window._certUser = user; // expose for generateCertificate()
     const el = document.getElementById('auth-area');
     if(!el) return;
     if(user){
@@ -2004,12 +2256,24 @@ if(!sessionStorage.getItem('_wXP')){
     const email=document.getElementById('auth-email').value.trim();
     const pass=document.getElementById('auth-pass').value;
     const err=document.getElementById('auth-err');
+    // Rate limiting: khóa 60s sau 5 lần thất bại
+    const now=Date.now();
+    if(now<_loginLockUntil){
+      const secs=Math.ceil((_loginLockUntil-now)/1000);
+      err.textContent=`Quá nhiều lần thất bại. Vui lòng đợi ${secs} giây.`;return;
+    }
     if(!email||!pass){err.textContent='Vui lòng nhập email và mật khẩu.';return;}
     const btn=document.getElementById('auth-action-btn');
     btn.disabled=true; btn.textContent='Đang đăng nhập...';
     const {error} = await sb.auth.signInWithPassword({email,password:pass});
     btn.disabled=false; btn.textContent='Đăng nhập';
-    if(error){err.textContent=error.message==='Invalid login credentials'?'Email hoặc mật khẩu không đúng.':error.message;}
+    if(error){
+      _loginAttempts++;
+      if(_loginAttempts>=5){_loginLockUntil=Date.now()+60000;_loginAttempts=0;}
+      err.textContent=error.message==='Invalid login credentials'?'Email hoặc mật khẩu không đúng.':error.message;
+    } else {
+      _loginAttempts=0;
+    }
   };
   window.doRegister = async function(){
     const name =document.getElementById('auth-reg-name').value.trim();
@@ -2041,7 +2305,7 @@ if(!sessionStorage.getItem('_wXP')){
     _bookmarks = new Set();
     updateBmBadge();
     loadSRS();
-    Object.assign(GS,{xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:''});
+    Object.assign(GS,{xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:'',xpHistory:[]});
     renderAuthUI(null);
     updateXPUI();
     renderTopicTabs();
@@ -2081,7 +2345,7 @@ if(!sessionStorage.getItem('_wXP')){
       _bookmarks = new Set();
       updateBmBadge();
       loadSRS();
-      Object.assign(GS,{xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:''});
+      Object.assign(GS,{xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays:0,dialogues:0,earnedBadges:[],lastDate:'',xpHistory:[]});
       updateXPUI();
       renderTopicTabs();
       renderDashboard();
