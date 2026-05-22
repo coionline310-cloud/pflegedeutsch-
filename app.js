@@ -2206,9 +2206,7 @@ window.renderLearningPath=renderLearningPath;
 // 🤖 AUTO-GENERATE BÀI TẬP (AI Exercise)
 // ════════════════════════════════════════════════════════
 async function startAIExercise(){
-  const words=shuffle(flatAll()).slice(0,8);
-  if(!words.length){toast('Chưa có từ vựng trong DB!');return;}
-  const wordList=words.map(w=>`${w.de} = ${w.vi}`).join('\n');
+  if(!flatAll().length){toast('Chưa có từ vựng trong DB!');return;}
   const menu=document.getElementById('exMenu');
   const runner=document.getElementById('exRunner');
   if(menu)menu.classList.add('off');
@@ -2220,20 +2218,18 @@ async function startAIExercise(){
   document.getElementById('ex-xp').textContent='+0 XP';
   document.getElementById('exContent').innerHTML=`<div style="text-align:center;padding:3rem;color:var(--t2)"><div style="font-size:2.5rem;margin-bottom:.6rem">🤖</div><div style="font-size:.9rem">AI đang tạo bài tập...</div></div>`;
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
+    const sbUrl=window.SUPABASE_URL||'';
+    const sbKey=window.SUPABASE_ANON_KEY||'';
+    const words=flatAll().slice(0,10).map(w=>({de:w.de,vi:w.vi}));
+    const res=await fetch(`${sbUrl}/functions/v1/ai-exercise`,{
       method:'POST',
-      headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({
-        model:'claude-haiku-4-5-20251001',max_tokens:1200,
-        system:'You are a German medical vocabulary exercise generator. Return ONLY valid JSON array, no markdown, no explanation.',
-        messages:[{role:'user',content:`Tạo 5 câu bài tập tiếng Đức từ danh sách:\n${wordList}\n\nTrả về JSON array, mỗi phần tử:\n{"type":"mcq"|"fill","q":"câu hỏi","ans":"đáp án tiếng Đức","opts":["A","B","C","D"],"hint":"gợi ý"}\nOpts chỉ cần cho mcq. Không thêm text ngoài JSON.`}]
-      })
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${sbKey}`,'apikey':sbKey},
+      body:JSON.stringify({words})
     });
     const data=await res.json();
-    const text=data.content?.[0]?.text||'[]';
-    const m=text.match(/\[[\s\S]*\]/);
-    const pool=m?JSON.parse(m[0]):[];
-    if(!pool.length)throw new Error('empty');
+    if(data.error)throw new Error(data.error);
+    const pool=data.exercises||[];
+    if(!pool.length)throw new Error('AI không trả về bài tập hợp lệ');
     exType='ai';exPool=pool.map(q=>({de:q.ans,vi:q.q,_ai:q}));
     exIdx=0;exOk=0;exFail=0;exStreak=0;exRoundXP=0;
     updateExScore();loadExQ();
