@@ -728,7 +728,7 @@ function navTo(pg){
   document.querySelectorAll('.bn-item[data-page]').forEach(i=>i.classList.remove('active'));
   const bi=document.querySelector('.bn-item[data-page="'+pg+'"]');
   if(bi) bi.classList.add('active');
-  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay'].includes(pg);
+  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks'].includes(pg);
   const bnCats=document.getElementById('bn-cats-btn');
   if(bnCats) bnCats.classList.toggle('active',isCatPage);
   // Category sheet active item
@@ -740,6 +740,7 @@ function navTo(pg){
   if(pageEl) pageEl.classList.add('active');
   if(pg==='bookmarks')renderBookmarksPage();
   else if(pg==='learning-path')renderLearningPath();
+  else if(pg==='body-diagram')renderBodyDiagram();
   else if(isCatPage)ensurePage(pg);
   if(pg==='dashboard')renderDashboard();
   if(pg==='dialogue')renderDialogues();
@@ -2228,6 +2229,222 @@ function calcCatScore(cat){
   const completion=Math.round(done/total*100);
   return{score,total,notStarted,weak,due,done,completion};
 }
+// ════════════════════════════════════════════════════════
+// 🏥 SƠ ĐỒ CƠ THỂ (Body Diagram)
+// ════════════════════════════════════════════════════════
+const ART_COLOR={'der':'var(--blue)','die':'#f472b6','das':'var(--teal)'};
+const BODY_PARTS=[
+  // Đầu & mặt
+  {id:'haar',         de:'das Haar',           vi:'Tóc',          cx:100,cy:13, shape:'ellipse',rx:24,ry:9},
+  {id:'kopf',         de:'der Kopf',           vi:'Đầu',          cx:100,cy:38, shape:'circle', r:28},
+  {id:'auge',         de:'das Auge',           vi:'Mắt',          cx:100,cy:29, shape:'ellipse',rx:14,ry:5,  sym:true,scx:88},
+  {id:'nase',         de:'die Nase',           vi:'Mũi',          cx:100,cy:39, shape:'ellipse',rx:5, ry:7},
+  {id:'mund',         de:'der Mund',           vi:'Miệng',        cx:100,cy:51, shape:'ellipse',rx:9, ry:5},
+  {id:'ohr',          de:'das Ohr',            vi:'Tai',          cx:72, cy:35, shape:'circle', r:7,          sym:true},
+  // Cổ & thân
+  {id:'hals',         de:'der Hals',           vi:'Cổ',           cx:100,cy:69, shape:'ellipse',rx:11,ry:8},
+  {id:'schulter',     de:'die Schulter',       vi:'Vai',          cx:60, cy:84, shape:'ellipse',rx:20,ry:12, sym:true},
+  {id:'brust',        de:'die Brust',          vi:'Ngực',         cx:100,cy:110,shape:'ellipse',rx:28,ry:19},
+  {id:'bauch',        de:'der Bauch',          vi:'Bụng',         cx:100,cy:148,shape:'ellipse',rx:24,ry:17},
+  // Tay
+  {id:'arm',          de:'der Arm',            vi:'Cánh tay',     cx:47, cy:122,shape:'ellipse',rx:11,ry:36, sym:true},
+  {id:'ellbogen',     de:'der Ellbogen',       vi:'Khuỷu tay',    cx:44, cy:162,shape:'circle', r:10,         sym:true},
+  {id:'hand',         de:'die Hand',           vi:'Bàn tay',      cx:45, cy:207,shape:'ellipse',rx:11,ry:14, sym:true},
+  // Phần dưới
+  {id:'hufte',        de:'die Hüfte',          vi:'Hông',         cx:100,cy:172,shape:'ellipse',rx:28,ry:11},
+  {id:'oberschenkel', de:'der Oberschenkel',   vi:'Đùi',          cx:81, cy:214,shape:'ellipse',rx:15,ry:27, sym:true},
+  {id:'knie',         de:'das Knie',           vi:'Đầu gối',      cx:81, cy:254,shape:'circle', r:13,         sym:true},
+  {id:'unterschenkel',de:'der Unterschenkel',  vi:'Cẳng chân',    cx:81, cy:287,shape:'ellipse',rx:11,ry:22, sym:true},
+  {id:'fuss',         de:'der Fuß',            vi:'Bàn chân',     cx:77, cy:330,shape:'ellipse',rx:18,ry:9,  sym:true},
+];
+
+let _bdQuizMode=false,_bdQuizPart=null,_bdQuizScore={ok:0,fail:0};
+
+function bdShapeEl(p,cx,extraClass,extraStyle){
+  const color=ART_COLOR[p.de.split(' ')[0]]||'var(--blue)';
+  const attrs=`class="bd-zone${extraClass?' '+extraClass:''}" data-id="${p.id}" fill="${color}" fill-opacity="0.13" stroke="${color}" stroke-width="1.2" stroke-opacity="0.5" style="cursor:pointer;transition:fill-opacity .15s,stroke-opacity .15s${extraStyle?';'+extraStyle:''}"`;
+  return p.shape==='circle'
+    ?`<circle ${attrs} cx="${cx}" cy="${p.cy}" r="${p.r}"/>`
+    :`<ellipse ${attrs} cx="${cx}" cy="${p.cy}" rx="${p.rx}" ry="${p.ry}"/>`;
+}
+
+function renderBodyDiagram(){
+  const page=document.getElementById('page-body-diagram');
+  if(!page)return;
+
+  // Build SVG zones (left + mirrored right)
+  const zones=BODY_PARTS.map(p=>{
+    let html=bdShapeEl(p,p.cx,'','');
+    if(p.sym) html+=bdShapeEl(p,200-p.cx,'','');
+    return html;
+  }).join('');
+
+  // Article legend
+  const legend=Object.entries(ART_COLOR).map(([art,col])=>
+    `<span class="bd-art-chip" style="background:${col}20;color:${col};border:1px solid ${col}40">${art}</span>`
+  ).join('');
+
+  page.innerHTML=`
+    <div class="ph">
+      <div class="pt">🏥 Sơ đồ cơ thể</div>
+      <div class="ps">Bấm vào bộ phận để xem từ tiếng Đức · màu sắc theo mạo từ</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:.5rem">
+        <div style="display:flex;gap:6px">${legend}</div>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="bd-mode-btn active" id="bd-learn-btn" onclick="setBDMode('learn')">📖 Học</button>
+          <button class="bd-mode-btn" id="bd-quiz-btn" onclick="setBDMode('quiz')">🎯 Quiz</button>
+        </div>
+      </div>
+    </div>
+    <div id="bd-quiz-bar" style="display:none" class="bd-quiz-bar">
+      <div id="bd-quiz-q" style="font-size:.9rem;font-weight:600"></div>
+      <div style="display:flex;gap:10px;font-size:.82rem">
+        <span id="bd-qok"  style="color:var(--teal)">✓ 0</span>
+        <span id="bd-qfail" style="color:var(--red)">✗ 0</span>
+      </div>
+    </div>
+    <div class="bd-layout">
+      <div class="bd-svg-wrap">
+        <svg id="bd-svg" viewBox="0 0 200 348" xmlns="http://www.w3.org/2000/svg">
+          <g fill="var(--s3)" stroke="var(--b2)" stroke-width="1">
+            <ellipse cx="100" cy="13" rx="26" ry="11"/>
+            <circle cx="100" cy="38" r="28"/>
+            <rect x="91" y="63" width="18" height="15" rx="6"/>
+            <ellipse cx="60" cy="84" rx="21" ry="12"/><ellipse cx="140" cy="84" rx="21" ry="12"/>
+            <rect x="68" y="78" width="64" height="90" rx="10"/>
+            <rect x="37" y="78" width="21" height="65" rx="10"/><rect x="142" y="78" width="21" height="65" rx="10"/>
+            <rect x="39" y="143" width="17" height="56" rx="8"/><rect x="144" y="143" width="17" height="56" rx="8"/>
+            <ellipse cx="47" cy="210" rx="11" ry="14"/><ellipse cx="153" cy="210" rx="11" ry="14"/>
+            <rect x="66" y="164" width="68" height="32" rx="8"/>
+            <rect x="69" y="192" width="26" height="63" rx="11"/><rect x="105" y="192" width="26" height="63" rx="11"/>
+            <ellipse cx="82" cy="258" rx="14" ry="12"/><ellipse cx="118" cy="258" rx="14" ry="12"/>
+            <rect x="71" y="268" width="22" height="57" rx="9"/><rect x="107" y="268" width="22" height="57" rx="9"/>
+            <ellipse cx="78" cy="333" rx="20" ry="9"/><ellipse cx="122" cy="333" rx="20" ry="9"/>
+          </g>
+          <g id="bd-zones">${zones}</g>
+        </svg>
+      </div>
+      <div class="bd-panel" id="bd-panel">
+        <div class="bd-panel-hint">👆<br>Bấm vào<br>bộ phận</div>
+        <div class="bd-word-list">
+          ${BODY_PARTS.map(p=>{
+            const c=ART_COLOR[p.de.split(' ')[0]]||'var(--blue)';
+            return`<div class="bd-wl-item" data-id="${p.id}" onclick="selectBDPart('${p.id}')">
+              <span class="bd-wl-dot" style="background:${c}"></span>
+              <span class="bd-wl-de">${p.de}</span>
+              <span class="bd-wl-vi">${p.vi}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+
+  // Event delegation on SVG zones
+  document.getElementById('bd-zones').addEventListener('click',e=>{
+    const z=e.target.closest('.bd-zone');
+    if(!z)return;
+    _bdQuizMode?bdQuizCheck(z.dataset.id):selectBDPart(z.dataset.id);
+  });
+  document.getElementById('bd-zones').addEventListener('mouseover',e=>{
+    const z=e.target.closest('.bd-zone');
+    if(z)document.querySelectorAll(`.bd-zone[data-id="${z.dataset.id}"]`).forEach(el=>{el.style.fillOpacity='.35';el.style.strokeOpacity='1';});
+  });
+  document.getElementById('bd-zones').addEventListener('mouseout',e=>{
+    const z=e.target.closest('.bd-zone');
+    if(z)document.querySelectorAll(`.bd-zone[data-id="${z.dataset.id}"]`).forEach(el=>{
+      if(!el.classList.contains('bd-sel')){el.style.fillOpacity='.13';el.style.strokeOpacity='.5';}
+    });
+  });
+}
+
+function selectBDPart(id){
+  const p=BODY_PARTS.find(x=>x.id===id);if(!p)return;
+  const color=ART_COLOR[p.de.split(' ')[0]]||'var(--blue)';
+  const art=p.de.split(' ')[0];
+  const bare=p.de.split(' ').slice(1).join(' ');
+  // Highlight zones
+  document.querySelectorAll('.bd-zone').forEach(z=>{z.classList.remove('bd-sel');z.style.fillOpacity='.13';z.style.strokeOpacity='.5';});
+  document.querySelectorAll(`.bd-zone[data-id="${id}"]`).forEach(z=>{z.classList.add('bd-sel');z.style.fillOpacity='.4';z.style.strokeOpacity='1';z.style.strokeWidth='2';});
+  // Highlight word list
+  document.querySelectorAll('.bd-wl-item').forEach(el=>el.classList.toggle('active',el.dataset.id===id));
+  // Check SRS
+  const inSRS=!!(SRS_DB[p.de]||SRS_DB[bare]);
+  const panel=document.getElementById('bd-panel');if(!panel)return;
+  panel.innerHTML=`
+    <div class="bd-info-card" style="border-color:${color}40">
+      <div class="bd-info-art" style="background:${color}20;color:${color}">${art}</div>
+      <div class="bd-info-de" style="color:${color}">${bare}</div>
+      <div class="bd-info-vi">${p.vi}</div>
+      <div class="bd-info-btns">
+        <button class="bd-btn-speak" onclick="speakDE('${bare}')">🔊 Nghe</button>
+        <button class="bd-btn-srs ${inSRS?'in-srs':''}" onclick="bdAddSRS('${p.id}')">
+          ${inSRS?'✅ Có trong SRS':'➕ Thêm SRS'}
+        </button>
+      </div>
+      <div class="bd-art-hint">
+        <span style="background:${ART_COLOR['der']}20;color:${ART_COLOR['der']};border:1px solid ${ART_COLOR['der']}30" class="bd-art-chip">der</span> =nam &nbsp;
+        <span style="background:${ART_COLOR['die']}20;color:${ART_COLOR['die']};border:1px solid ${ART_COLOR['die']}30" class="bd-art-chip">die</span> =nữ &nbsp;
+        <span style="background:${ART_COLOR['das']}20;color:${ART_COLOR['das']};border:1px solid ${ART_COLOR['das']}30" class="bd-art-chip">das</span> =trung
+      </div>
+    </div>
+    <div class="bd-word-list">
+      ${BODY_PARTS.map(q=>{const c=ART_COLOR[q.de.split(' ')[0]]||'var(--blue)';
+        return`<div class="bd-wl-item${q.id===id?' active':''}" data-id="${q.id}" onclick="selectBDPart('${q.id}')">
+          <span class="bd-wl-dot" style="background:${c}"></span>
+          <span class="bd-wl-de">${q.de}</span>
+          <span class="bd-wl-vi">${q.vi}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function bdAddSRS(id){
+  const p=BODY_PARTS.find(x=>x.id===id);if(!p)return;
+  const key=p.de;
+  if(!SRS_DB[key]){
+    SRS_DB[key]={interval:1,ease:2.5,reps:0,due:Date.now()};
+    saveSRS();toast('✅ Đã thêm "'+p.de+'" vào SRS');
+  }else{toast('Từ này đã có trong SRS!');}
+  selectBDPart(id);
+}
+
+function setBDMode(mode){
+  _bdQuizMode=mode==='quiz';
+  document.getElementById('bd-learn-btn')?.classList.toggle('active',!_bdQuizMode);
+  document.getElementById('bd-quiz-btn')?.classList.toggle('active',_bdQuizMode);
+  const bar=document.getElementById('bd-quiz-bar');
+  if(bar)bar.style.display=_bdQuizMode?'flex':'none';
+  document.querySelectorAll('.bd-zone').forEach(z=>{z.classList.remove('bd-sel','bd-ok','bd-fail');z.style.fillOpacity='.13';z.style.strokeOpacity='.5';z.style.strokeWidth='1.2';});
+  if(_bdQuizMode){_bdQuizScore={ok:0,fail:0};bdNextQuiz();}
+}
+
+function bdNextQuiz(){
+  _bdQuizPart=BODY_PARTS[Math.floor(Math.random()*BODY_PARTS.length)];
+  const q=document.getElementById('bd-quiz-q');
+  if(q)q.innerHTML=`Bấm vào: <b style="color:${ART_COLOR[_bdQuizPart.de.split(' ')[0]]||'var(--blue)'}">${_bdQuizPart.de}</b> <span style="color:var(--t3)">(${_bdQuizPart.vi})</span>`;
+  document.querySelectorAll('.bd-zone').forEach(z=>{z.classList.remove('bd-ok','bd-fail');z.style.fillOpacity='.13';z.style.strokeOpacity='.5';});
+}
+
+function bdQuizCheck(id){
+  if(!_bdQuizPart)return;
+  const correct=id===_bdQuizPart.id;
+  if(correct){
+    _bdQuizScore.ok++;
+    document.querySelectorAll(`.bd-zone[data-id="${id}"]`).forEach(z=>{z.style.fillOpacity='.5';z.style.stroke='var(--teal)';z.style.strokeWidth='2.5';});
+    speakDE(_bdQuizPart.de.split(' ').slice(1).join(' '));
+    setTimeout(()=>{document.querySelectorAll('.bd-zone').forEach(z=>{z.style.stroke='';z.style.strokeWidth='1.2';});bdNextQuiz();},700);
+  }else{
+    _bdQuizScore.fail++;
+    document.querySelectorAll(`.bd-zone[data-id="${id}"]`).forEach(z=>{z.style.fillOpacity='.4';z.style.stroke='var(--red)';z.style.strokeWidth='2';});
+    document.querySelectorAll(`.bd-zone[data-id="${_bdQuizPart.id}"]`).forEach(z=>{z.style.fillOpacity='.5';z.style.stroke='var(--teal)';z.style.strokeWidth='2.5';});
+    setTimeout(()=>{document.querySelectorAll('.bd-zone').forEach(z=>{z.style.stroke='';z.style.strokeWidth='1.2';});bdNextQuiz();},1100);
+  }
+  const ok=document.getElementById('bd-qok'),fail=document.getElementById('bd-qfail');
+  if(ok)ok.textContent='✓ '+_bdQuizScore.ok;
+  if(fail)fail.textContent='✗ '+_bdQuizScore.fail;
+}
+window.selectBDPart=selectBDPart;window.bdAddSRS=bdAddSRS;window.setBDMode=setBDMode;
+
 function renderLearningPath(){
   const el=document.getElementById('page-learning-path');if(!el)return;
   const cats=Object.keys(CAT_META);
