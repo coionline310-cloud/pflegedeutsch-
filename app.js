@@ -2295,7 +2295,7 @@ function openVideoEditor(cat){
   const meta=CAT_META[cat]||{ic:'📚',l:cat};
   const ov=document.createElement('div');
   ov.id='video-overlay';
-  ov.className='memo-overlay';
+  ov.className='overlay on';
   ov.innerHTML=`
     <div class="mbox" style="max-width:420px;width:100%">
       <div style="font-weight:700;font-size:1rem;margin-bottom:1rem">🎬 Cài video — ${sanitize(meta.ic)} ${sanitize(meta.l)}</div>
