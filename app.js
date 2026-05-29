@@ -471,6 +471,7 @@ let GS={xp:0,streak:1,mastered:0,flashDone:0,exDone:0,exPerfectRound:0,roleplays
 function addXP(n,label=''){
   const prev=getLevel(GS.xp);
   GS.xp+=n;
+  addTodayXP(n);
   // Track daily XP history (last 30 days)
   const today=new Date().toISOString().slice(0,10);
   if(!GS.xpHistory)GS.xpHistory=[];
@@ -503,6 +504,9 @@ function updateXPUI(){
   document.getElementById('sb-streak-txt').textContent=GS.streak+' ngày liên tiếp';
   document.getElementById('tb-xp').textContent=`⭐ ${GS.xp} XP`;
   document.getElementById('s-mastered').textContent=GS.mastered;
+  // Update CEFR badge in topbar
+  const cefrBadge=document.getElementById('tb-cefr');
+  if(cefrBadge){const c=getCEFR(GS.xp);cefrBadge.textContent=c.level;cefrBadge.style.background=c.color+'20';cefrBadge.style.color=c.color;cefrBadge.style.borderColor=c.color+'40';}
 }
 function showLevelUp(lv){
   const t=document.getElementById('lvlToast');
@@ -728,7 +732,7 @@ function navTo(pg){
   document.querySelectorAll('.bn-item[data-page]').forEach(i=>i.classList.remove('active'));
   const bi=document.querySelector('.bn-item[data-page="'+pg+'"]');
   if(bi) bi.classList.add('active');
-  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks'].includes(pg);
+  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks','typing-speed'].includes(pg);
   const bnCats=document.getElementById('bn-cats-btn');
   if(bnCats) bnCats.classList.toggle('active',isCatPage);
   // Category sheet active item
@@ -741,6 +745,7 @@ function navTo(pg){
   if(pg==='bookmarks')renderBookmarksPage();
   else if(pg==='learning-path')renderLearningPath();
   else if(pg==='body-diagram')renderBodyDiagram();
+  else if(pg==='typing-speed')renderTypingSpeed();
   else if(isCatPage)ensurePage(pg);
   if(pg==='dashboard')renderDashboard();
   if(pg==='dialogue')renderDialogues();
@@ -1043,6 +1048,7 @@ function rateFC(cat,q){
   const s=flashState[cat],p=s.items[s.idx];
   reviewSRS(p,q);
   GS.flashDone++;
+  progressMission('flash5');
   updateXPUI();
   navFC(cat,1);
 }
@@ -1363,6 +1369,7 @@ function rateSRS(q){
   srsQ.done++;
   if(q>=3) srsQ.ok++;
   srsQ.xpEarned+=(q>=4?10:q>=3?5:2);
+  progressMission('srs10');
   updateXPUI();
   // Hard card: push a copy to end of queue so it repeats this session
   if(q===0) srsQ.queue.push({...srsQ.card});
@@ -1622,6 +1629,7 @@ function showRoundDone(){
   const m=pct>=90?'🏆':pct>=70?'🥈':pct>=50?'🥉':'💪';
   if(pct===100){GS.exPerfectRound++;checkBadges();}
   GS.exDone+=EX_ROUND;checkBadges();
+  progressMission('ex1');
   document.getElementById('exContent').innerHTML=`
     <div style="text-align:center;padding:2rem 1rem;">
       <div style="font-size:3rem;margin-bottom:.5rem;">${m}</div>
@@ -1791,14 +1799,297 @@ function selMatch(side,idx,de){
 // ════════════════════════════════════════════════════════
 // DASHBOARD
 // ════════════════════════════════════════════════════════
+// GREETING / CEFR / DAILY-XP / MISSIONS / DAILY CHALLENGE
+// ════════════════════════════════════════════════════════
+function getGreeting(){
+  const h=new Date().getHours();
+  if(h>=6&&h<12) return 'Guten Morgen';
+  if(h>=12&&h<18) return 'Guten Tag';
+  if(h>=18) return 'Guten Abend';
+  return 'Gute Nacht';
+}
+
+function getCEFR(xp){
+  if(xp<50)   return {level:'A1',color:'#3b82f6'};
+  if(xp<150)  return {level:'A2',color:'#22c55e'};
+  if(xp<300)  return {level:'B1',color:'#f97316'};
+  if(xp<500)  return {level:'B2',color:'#ef4444'};
+  if(xp<800)  return {level:'C1',color:'#a855f7'};
+  return        {level:'C2',color:'#eab308'};
+}
+
+// ── Daily XP goal ─────────────────────────────────────
+function _getDailyXPStore(){
+  const today=new Date().toISOString().slice(0,10);
+  try{
+    const s=JSON.parse(localStorage.getItem('pd-daily-xp')||'{}');
+    if(s.date===today) return s;
+  }catch(e){}
+  const fresh={date:today,xp:0};
+  localStorage.setItem('pd-daily-xp',JSON.stringify(fresh));
+  return fresh;
+}
+function getTodayXP(){return _getDailyXPStore().xp;}
+function addTodayXP(n){
+  const s=_getDailyXPStore();
+  const prev=s.xp;
+  s.xp+=n;
+  localStorage.setItem('pd-daily-xp',JSON.stringify(s));
+  if(prev<50&&s.xp>=50) toast('🎉 Đạt mục tiêu hôm nay!');
+}
+
+// ── Missions ──────────────────────────────────────────
+const MISSIONS_DEF=[
+  {id:'flash5',  label:'Học 5 thẻ flashcard',  icon:'🃏', xp:15, target:5},
+  {id:'srs10',   label:'Ôn 10 thẻ SRS',        icon:'🔁', xp:25, target:10},
+  {id:'ex1',     label:'Hoàn thành 1 bài tập',  icon:'✏️', xp:20, target:1},
+  {id:'search3', label:'Tra cứu 3 từ vựng',     icon:'🔍', xp:10, target:3},
+];
+function _getMissionsStore(){
+  const today=new Date().toISOString().slice(0,10);
+  try{
+    const s=JSON.parse(localStorage.getItem('pd-missions')||'{}');
+    if(s.date===today) return s;
+  }catch(e){}
+  const fresh={date:today,progress:{},claimed:[]};
+  localStorage.setItem('pd-missions',JSON.stringify(fresh));
+  return fresh;
+}
+function _saveMissions(s){localStorage.setItem('pd-missions',JSON.stringify(s));}
+function getTodayMissions(){return _getMissionsStore();}
+function progressMission(id){
+  const s=_getMissionsStore();
+  const m=MISSIONS_DEF.find(x=>x.id===id);
+  if(!m) return;
+  if(s.claimed.includes(id)) return;
+  s.progress[id]=(s.progress[id]||0)+1;
+  _saveMissions(s);
+  // Re-render missions card if dashboard is active
+  const dashPage=document.getElementById('page-dashboard');
+  if(dashPage&&dashPage.classList.contains('active')){
+    const mc=document.getElementById('dash-missions-card');
+    if(mc) mc.innerHTML=_renderMissionsCardInner();
+  }
+}
+function claimMission(id){
+  const s=_getMissionsStore();
+  const m=MISSIONS_DEF.find(x=>x.id===id);
+  if(!m) return;
+  if(s.claimed.includes(id)) return;
+  if((s.progress[id]||0)<m.target) return;
+  s.claimed.push(id);
+  _saveMissions(s);
+  addXP(m.xp,'Nhiệm vụ: '+m.label);
+  const mc=document.getElementById('dash-missions-card');
+  if(mc) mc.innerHTML=_renderMissionsCardInner();
+}
+window.claimMission=claimMission;
+
+function _missionCountdown(){
+  const now=new Date();
+  const midnight=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,0);
+  const diff=midnight-now;
+  const h=Math.floor(diff/3600000);
+  const m=Math.floor((diff%3600000)/60000);
+  return `${h}h ${m}m`;
+}
+function _renderMissionsCardInner(){
+  const s=getTodayMissions();
+  return MISSIONS_DEF.map(m=>{
+    const prog=Math.min(s.progress[m.id]||0,m.target);
+    const pct=Math.round(prog/m.target*100);
+    const claimed=s.claimed.includes(m.id);
+    const done=prog>=m.target;
+    return `<div class="mission-card">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:1.3rem">${m.icon}</span>
+        <div style="flex:1">
+          <div style="font-size:.82rem;font-weight:600;color:var(--tx)">${m.label}</div>
+          <div class="mission-prog-wrap"><div class="mission-prog-fill" style="width:${pct}%"></div></div>
+          <div style="font-size:.7rem;color:var(--t3);margin-top:2px">${prog}/${m.target}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <span class="xp-badge">+${m.xp} XP</span>
+          ${claimed?'<span style="font-size:.7rem;color:var(--teal)">✓ Đã nhận</span>':
+            done?`<button class="ib pri" style="font-size:.7rem;padding:3px 9px;" onclick="claimMission('${m.id}')">Nhận thưởng</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('')+`<div style="font-size:.7rem;color:var(--t3);text-align:right;margin-top:6px">⏰ Reset sau: ${_missionCountdown()}</div>`;
+}
+
+// ── Daily Challenge ────────────────────────────────────
+function _dayOfYear(){
+  const now=new Date();
+  return Math.floor((now-new Date(now.getFullYear(),0,0))/86400000);
+}
+function _getDailyChallengeStore(){
+  const today=new Date().toISOString().slice(0,10);
+  try{
+    const s=JSON.parse(localStorage.getItem('pd-daily-challenge')||'{}');
+    if(s.date===today) return s;
+  }catch(e){}
+  const all=flatAll();
+  const idx=_dayOfYear()%all.length;
+  const fresh={date:today,wordIdx:idx,answered:false,correct:false};
+  localStorage.setItem('pd-daily-challenge',JSON.stringify(fresh));
+  return fresh;
+}
+function _saveDailyChallenge(s){localStorage.setItem('pd-daily-challenge',JSON.stringify(s));}
+function _renderChallengeCard(){
+  const s=_getDailyChallengeStore();
+  const all=flatAll();
+  if(!all.length) return '<div style="color:var(--t3);font-size:.8rem">Chưa có dữ liệu</div>';
+  const word=all[s.wordIdx%all.length];
+  const wrongs=shuffle(all.filter(x=>x.de!==word.de)).slice(0,3).map(x=>x.vi);
+  const opts=shuffle([word.vi,...wrongs]);
+  if(s.answered){
+    return `<div style="font-size:1.1rem;font-weight:700;text-align:center;margin-bottom:.8rem">${sanitize(word.de)}</div>
+      <div class="challenge-opts">${opts.map(o=>{
+        const cls=o===word.vi?(s.correct?'challenge-opt correct':'challenge-opt correct'):'challenge-opt'+(o===s.chosen&&!s.correct?' wrong':'');
+        return `<button class="${cls}" disabled>${sanitize(o)}</button>`;
+      }).join('')}</div>
+      <div style="text-align:center;margin-top:.6rem;font-size:.82rem;color:${s.correct?'var(--teal)':'var(--red)'}">
+        ${s.correct?'✓ Chính xác! +20 XP':'✗ Sai rồi — đáp án: '+sanitize(word.vi)}
+      </div>`;
+  }
+  return `<div style="font-size:1.1rem;font-weight:700;text-align:center;margin-bottom:.8rem">${sanitize(word.de)}</div>
+    <div class="challenge-opts">${opts.map(o=>`<button class="challenge-opt" onclick="answerChallenge('${o.replace(/'/g,"&#39;").replace(/\\/g,'\\\\')}')">${sanitize(o)}</button>`).join('')}</div>`;
+}
+function answerChallenge(vi){
+  const s=_getDailyChallengeStore();
+  if(s.answered) return;
+  const all=flatAll();
+  const word=all[s.wordIdx%all.length];
+  s.answered=true;
+  s.correct=vi===word.vi;
+  s.chosen=vi;
+  _saveDailyChallenge(s);
+  if(s.correct){addXP(20,'Thử thách hôm nay');}
+  const cc=document.getElementById('dash-challenge-inner');
+  if(cc) cc.innerHTML=_renderChallengeCard();
+}
+window.answerChallenge=answerChallenge;
+
+// ════════════════════════════════════════════════════════
+// TYPING SPEED TEST
+// ════════════════════════════════════════════════════════
+let _typingTimer=null,_typingStart=0,_typingWords=0,_typingCorrect=0,_typingWrong=0,_typingRunning=false,_typingPool=[];
+function renderTypingSpeed(){
+  const page=document.getElementById('page-typing-speed');
+  if(!page) return;
+  page.innerHTML=`
+    <div class="ph"><div class="pt">⌨️ Tốc độ gõ</div><div class="ps">Test typing speed với từ vựng tiếng Đức — 60 giây</div></div>
+    <div class="typing-wrap" id="typing-game-wrap">
+      <div style="text-align:center;padding:2rem 1rem;">
+        <div style="font-size:3rem;margin-bottom:1rem">⌨️</div>
+        <div style="font-size:.9rem;color:var(--t2);margin-bottom:1.5rem">Gõ đúng từ tiếng Đức hiển thị — tự động chuyển khi đúng</div>
+        <button class="ib pri" style="font-size:1rem;padding:10px 28px" onclick="startTypingGame()">▶ Bắt đầu</button>
+      </div>
+    </div>`;
+}
+window.startTypingGame=function(){
+  clearInterval(_typingTimer);
+  _typingPool=shuffle(flatAll());
+  _typingWords=0;_typingCorrect=0;_typingWrong=0;_typingRunning=true;
+  let _typingIdx=0,timeLeft=60;
+  const wrap=document.getElementById('typing-game-wrap');
+  if(!wrap) return;
+  function getWord(){return _typingPool[_typingIdx%_typingPool.length];}
+  function renderGame(){
+    const w=getWord();
+    wrap.innerHTML=`
+      <div class="typing-timer-row">
+        <span class="typing-timer" id="typing-time">${timeLeft}s</span>
+        <span style="color:var(--t2);font-size:.82rem">✓ ${_typingWords} từ · Độ chính xác: <span id="typing-acc">${_typingWords?Math.round(_typingCorrect/(_typingCorrect+_typingWrong)*100):100}%</span></span>
+      </div>
+      <div class="typing-word" id="typing-word">${sanitize(w.vi)}</div>
+      <div style="font-size:.7rem;color:var(--t3);margin-bottom:.6rem">→ gõ tiếng Đức</div>
+      <input class="typing-input" id="typing-inp" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Gõ tiếng Đức..." oninput="checkTypingInput(this,${JSON.stringify(w.de)})">
+      <div class="typing-feedback" id="typing-fb"></div>`;
+    document.getElementById('typing-inp')?.focus();
+  }
+  renderGame();
+  window.checkTypingInput=function(inp,correct){
+    const val=inp.value;
+    if(val.toLowerCase().trim()===correct.toLowerCase().trim()){
+      _typingWords++;_typingCorrect++;_typingIdx++;
+      inp.value='';
+      const w=getWord();
+      document.getElementById('typing-word').textContent=w.vi;
+      inp.oninput=null;
+      inp.oninput=function(){window.checkTypingInput(this,getWord().de);};
+      document.getElementById('typing-acc').textContent=Math.round(_typingCorrect/(_typingCorrect+_typingWrong)*100)+'%';
+      const fb=document.getElementById('typing-fb');
+      if(fb){fb.textContent='✓';fb.style.color='var(--teal)';setTimeout(()=>{if(fb)fb.textContent='';},600);}
+    }
+  };
+  _typingStart=Date.now();
+  _typingTimer=setInterval(()=>{
+    timeLeft--;
+    const el=document.getElementById('typing-time');
+    if(el) el.textContent=timeLeft+'s';
+    if(timeLeft<=0){
+      clearInterval(_typingTimer);
+      _typingRunning=false;
+      const elapsed=60;
+      const wpm=Math.round(_typingWords/(elapsed/60));
+      const acc=_typingWords?Math.round(_typingCorrect/(_typingCorrect+_typingWrong)*100):0;
+      // Save best score
+      const best=parseInt(localStorage.getItem('pd-typing-best')||'0');
+      if(wpm>best) localStorage.setItem('pd-typing-best',String(wpm));
+      const bestScore=Math.max(wpm,best);
+      if(wrap) wrap.innerHTML=`
+        <div class="typing-result">
+          <div style="font-size:2.5rem;margin-bottom:.5rem">⌨️</div>
+          <div style="font-size:1.4rem;font-weight:700;margin-bottom:.3rem">${wpm} WPM</div>
+          <div style="color:var(--t2);font-size:.85rem;margin-bottom:1rem">Tốc độ gõ</div>
+          <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:1.2rem">
+            <div style="text-align:center"><div style="font-size:1.2rem;font-weight:700;color:var(--teal)">${acc}%</div><div style="font-size:.72rem;color:var(--t3)">Độ chính xác</div></div>
+            <div style="text-align:center"><div style="font-size:1.2rem;font-weight:700;color:var(--yellow)">${_typingWords}</div><div style="font-size:.72rem;color:var(--t3)">Từ đã gõ</div></div>
+            <div style="text-align:center"><div style="font-size:1.2rem;font-weight:700;color:var(--purple)">${bestScore}</div><div style="font-size:.72rem;color:var(--t3)">Kỷ lục WPM</div></div>
+          </div>
+          <button class="ib pri" style="font-size:.9rem;padding:9px 24px" onclick="startTypingGame()">↺ Thử lại</button>
+        </div>`;
+    }
+  },1000);
+};
+window.retryTyping=function(){startTypingGame();};
+
+// ════════════════════════════════════════════════════════
 function renderDashboard(){
   if(!document.getElementById('dash-xp-card')) return;
   const lv=getLevel(GS.xp),nx=getNextLevel(GS.xp);
   const base=lv.min,top=nx?nx.min:GS.xp+1;
   const pct=Math.round((GS.xp-base)/(top-base)*100);
-  // XP Card
+
+  // ── Greeting Card (Feature 1 + Feature 3 + Feature 6) ─
+  const cefr=getCEFR(GS.xp);
+  const todayXP=getTodayXP();
+  const dailyGoal=50;
+  const dailyPct=Math.min(Math.round(todayXP/dailyGoal*100),100);
+  const userName=(window._currentUser?.user_metadata?.name||window._currentUser?.email||'').split(' ').pop()||'bạn';
   document.getElementById('dash-xp-card').innerHTML=`
-    <div class="xp-card">
+    <div class="greeting-card">
+      <div class="greeting-top">
+        <div style="flex:1">
+          <div class="greeting-text">${getGreeting()}, <strong>${sanitize(userName)}</strong>!</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">
+            <span class="cefr-badge" style="background:${cefr.color}20;color:${cefr.color};border:1px solid ${cefr.color}40">${cefr.level}</span>
+            <span style="font-size:.78rem;color:var(--t2)">🔥 ${GS.streak} ngày liên tiếp</span>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:.72rem;color:var(--t3);margin-bottom:3px">Hôm nay</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--yellow)">${todayXP} / ${dailyGoal} XP</div>
+        </div>
+      </div>
+      <div class="daily-goal-bar" style="margin-top:10px">
+        <div class="daily-goal-fill" style="width:${dailyPct}%"></div>
+      </div>
+      <div style="font-size:.68rem;color:var(--t3);margin-top:4px">${dailyPct<100?`${dailyGoal-todayXP} XP nữa để đạt mục tiêu`:'🎉 Đã đạt mục tiêu hôm nay!'}</div>
+    </div>
+    <div class="xp-card" style="margin-top:10px">
       <div class="xp-card-top">
         <div><div class="xp-level">${lv.emoji} ${lv.name}</div><div class="xp-level-lbl">Cấp độ hiện tại</div></div>
         <div class="xp-total">${GS.xp} XP${nx?' / '+nx.min+' XP':''}</div>
@@ -1806,6 +2097,31 @@ function renderDashboard(){
       <div class="xp-bar-wrap"><div class="xp-bar-inner" style="width:${pct}%"></div></div>
       <div class="xp-bar-labels"><span>${lv.name}</span>${nx?'<span>'+nx.emoji+' '+nx.name+'</span>':''}</div>
     </div>`;
+
+  // ── Feature Grid (Feature 4) ────────────────────────────
+  const FEAT_GRID=[
+    {icon:'🔁',title:'Ôn SRS',      sub:'Ôn tập thông minh', page:'srs'},
+    {icon:'✏️',title:'Bài tập',     sub:'Luyện tập kỹ năng',  page:'exercise'},
+    {icon:'💬',title:'Hội thoại',   sub:'Mẫu câu thực tế',    page:'dialogue'},
+    {icon:'🏥',title:'Sơ đồ cơ thể',sub:'Từ vựng y tế',       page:'body-diagram'},
+    {icon:'🗺️',title:'Lộ trình',   sub:'Ưu tiên học tập',     page:'learning-path'},
+    {icon:'⭐',title:'Yêu thích',   sub:'Từ đã đánh dấu',      page:'bookmarks'},
+    {icon:'🤖',title:'Roleplay AI', sub:'Luyện hội thoại',     page:'roleplay'},
+    {icon:'⌨️',title:'Tốc độ gõ',  sub:'Test typing speed',   page:'typing-speed'},
+  ];
+  let featGridSec=document.getElementById('dash-feat-grid-sec');
+  if(!featGridSec){
+    featGridSec=document.createElement('div');
+    featGridSec.id='dash-feat-grid-sec';
+    const xpCard=document.getElementById('dash-xp-card');
+    xpCard.after(featGridSec);
+  }
+  featGridSec.innerHTML=`<div class="feat-grid">${FEAT_GRID.map(f=>`
+    <div class="feat-card" onclick="navTo('${f.page}')">
+      <div class="feat-ic">${f.icon}</div>
+      <div class="feat-title">${f.title}</div>
+      <div class="feat-sub">${f.sub}</div>
+    </div>`).join('')}</div>`;
   // Streak
   document.getElementById('dash-streak-card').innerHTML=`
     <div class="streak-card">
@@ -1923,6 +2239,51 @@ function renderDashboard(){
         <button class="ib pri" onclick="generateCertificate()">🎓 Tải chứng chỉ</button>
       </div>`;
   }
+
+  // ── Daily Missions (Feature 2) ─────────────────────────
+  let missionsSec=document.getElementById('dash-missions-sec');
+  if(!missionsSec){
+    missionsSec=document.createElement('div');
+    missionsSec.id='dash-missions-sec';
+    missionsSec.className='prog-section';
+    const sug=document.querySelector('.sug-section');
+    if(sug) sug.parentNode.insertBefore(missionsSec,sug);
+    else document.getElementById('page-dashboard').appendChild(missionsSec);
+  }
+  missionsSec.innerHTML=`<div class="prog-title">🎯 Nhiệm vụ hôm nay</div>
+    <div id="dash-missions-card">${_renderMissionsCardInner()}</div>`;
+
+  // ── Daily Challenge (Feature 5) ────────────────────────
+  let challengeSec=document.getElementById('dash-challenge-sec');
+  if(!challengeSec){
+    challengeSec=document.createElement('div');
+    challengeSec.id='dash-challenge-sec';
+    challengeSec.className='prog-section';
+    missionsSec.after(challengeSec);
+  }
+  challengeSec.innerHTML=`<div class="prog-title">🎯 Thử thách hôm nay</div>
+    <div class="challenge-card" id="dash-challenge-inner">${_renderChallengeCard()}</div>`;
+
+  // ── Community (Feature 8) ──────────────────────────────
+  let commSec=document.getElementById('dash-comm-sec');
+  if(!commSec){
+    commSec=document.createElement('div');
+    commSec.id='dash-comm-sec';
+    document.getElementById('page-dashboard').appendChild(commSec);
+  }
+  commSec.innerHTML=`<div class="comm-section">
+    <div class="comm-title">CỘNG ĐỒNG</div>
+    <div class="comm-cards">
+      <a class="comm-card" href="#" style="--cc:var(--blue)" onclick="event.preventDefault();toast('Link Zalo sẽ sớm có!')">
+        <span class="comm-ic">💬</span>
+        <div><div class="comm-name">Zalo</div><div class="comm-sub">Nhóm học tiếng Đức Pflege</div></div>
+      </a>
+      <a class="comm-card" href="#" style="--cc:var(--blue)" onclick="event.preventDefault();toast('Link Facebook sẽ sớm có!')">
+        <span class="comm-ic">👥</span>
+        <div><div class="comm-name">Facebook</div><div class="comm-sub">Nhóm học tiếng Đức Pflege</div></div>
+      </a>
+    </div>
+  </div>`;
 }
 function jumpTo(cat, deWord){
   document.querySelectorAll('.nav-it').forEach(i=>i.classList.remove('active'));
@@ -1977,6 +2338,7 @@ function doSearch(q){
     dd.innerHTML='<div class="sr-empty">Không tìm thấy kết quả cho "<b>'+sanitize(q)+'</b>"</div>';
     dd.classList.add('open');return;
   }
+  progressMission('search3');
   dd.innerHTML=res.map((p,i)=>{
     const catMeta=CAT_META[p.cat]||{ic:'📚',l:p.cat};
     return `<div class="sr-it" data-idx="${i}" data-cat="${sanitize(p.cat)}" data-de="${p.de.replace(/"/g,'&quot;')}"

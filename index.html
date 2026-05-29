@@ -40,6 +40,7 @@
     <div class="nav-it" data-page="srs"       style="--tc:var(--purple)"><span class="nav-ic">🔁</span><span data-i18n="nav_srs">Ôn tập thông minh</span><span class="nav-new">SRS</span></div>
     <div class="nav-it" data-page="roleplay"  style="--tc:var(--orange)"><span class="nav-ic">🤖</span><span data-i18n="nav_roleplay">Roleplay AI</span><span class="nav-new">AI</span></div>
     <div class="nav-it" data-page="exercise"  style="--tc:var(--yellow)"><span class="nav-ic">✏️</span><span data-i18n="nav_exercise">Bài tập</span></div>
+    <div class="nav-it" data-page="typing-speed" style="--tc:var(--teal)" onclick="navTo('typing-speed')"><span class="nav-ic">⌨️</span>Tốc độ gõ</div>
   </nav>
   <div class="sb-foot">
     <div class="sb-stats">
@@ -62,6 +63,7 @@
       <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Đổi giao diện">🌙</button>
       <button class="ib" id="lang-btn" onclick="toggleLang()" title="Chuyển ngôn ngữ UI" style="font-size:.72rem;padding:4px 10px">🇩🇪 DE</button>
       <div class="xp-pill" id="tb-xp">⭐ 0 XP</div>
+      <span class="cefr-badge" id="tb-cefr" style="font-size:.7rem;padding:2px 8px;border-radius:20px;border:1px solid rgba(79,163,255,.4);background:rgba(79,163,255,.12);color:var(--blue)">A1</span>
       <button class="ib pri" onclick="openGoogleModal()">🔗 Xuất Google</button>
       <a href="admin.html" class="ib" style="text-decoration:none;border-color:rgba(159,110,245,.3);color:var(--purple);" title="Trang quản trị nội dung">⚙️ Admin</a>
       <div id="auth-area"></div>
@@ -111,6 +113,9 @@
     <div class="ph"><div class="pt">🤖 Roleplay AI</div><div class="ps">Luyện tập hội thoại thực tế với AI đóng vai bệnh nhân hoặc đồng nghiệp</div></div>
     <div id="rp-main"></div>
   </div>
+
+  <!-- TYPING SPEED PAGE -->
+  <div class="page" id="page-typing-speed"></div>
 
   <!-- EXERCISE PAGE -->
   <div class="page" id="page-exercise">
