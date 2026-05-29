@@ -2118,87 +2118,398 @@ window.answerChallenge=answerChallenge;
 // ════════════════════════════════════════════════════════
 // TYPING SPEED TEST
 // ════════════════════════════════════════════════════════
-let _typingTimer=null,_typingStart=0,_typingWords=0,_typingCorrect=0,_typingWrong=0,_typingRunning=false,_typingPool=[];
+let _tsTimer=null;
 function renderTypingSpeed(){
   const page=document.getElementById('page-typing-speed');
-  if(!page) return;
-  page.innerHTML=`
-    <div class="ph"><div class="pt">⌨️ Tốc độ gõ</div><div class="ps">Test typing speed với từ vựng tiếng Đức — 60 giây</div></div>
-    <div class="typing-wrap" id="typing-game-wrap">
-      <div style="text-align:center;padding:2rem 1rem;">
-        <div style="font-size:3rem;margin-bottom:1rem">⌨️</div>
-        <div style="font-size:.9rem;color:var(--t2);margin-bottom:1.5rem">Gõ đúng từ tiếng Đức hiển thị — tự động chuyển khi đúng</div>
-        <button class="ib pri" style="font-size:1rem;padding:10px 28px" onclick="startTypingGame()">▶ Bắt đầu</button>
-      </div>
-    </div>`;
-}
-window.startTypingGame=function(){
-  clearInterval(_typingTimer);
-  _typingPool=shuffle(flatAll());
-  _typingWords=0;_typingCorrect=0;_typingWrong=0;_typingRunning=true;
-  let _typingIdx=0,timeLeft=60;
-  const wrap=document.getElementById('typing-game-wrap');
-  if(!wrap) return;
-  function getWord(){return _typingPool[_typingIdx%_typingPool.length];}
-  function renderGame(){
-    const w=getWord();
-    wrap.innerHTML=`
-      <div class="typing-timer-row">
-        <span class="typing-timer" id="typing-time">${timeLeft}s</span>
-        <span style="color:var(--t2);font-size:.82rem">✓ ${_typingWords} từ · Độ chính xác: <span id="typing-acc">${_typingWords?Math.round(_typingCorrect/(_typingCorrect+_typingWrong)*100):100}%</span></span>
-      </div>
-      <div class="typing-word" id="typing-word">${sanitize(w.vi)}</div>
-      <div style="font-size:.7rem;color:var(--t3);margin-bottom:.6rem">→ gõ tiếng Đức</div>
-      <input class="typing-input" id="typing-inp" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Gõ tiếng Đức..." oninput="checkTypingInput(this,${JSON.stringify(w.de)})">
-      <div class="typing-feedback" id="typing-fb"></div>`;
-    document.getElementById('typing-inp')?.focus();
-  }
-  renderGame();
-  window.checkTypingInput=function(inp,correct){
-    const val=inp.value;
-    if(val.toLowerCase().trim()===correct.toLowerCase().trim()){
-      _typingWords++;_typingCorrect++;_typingIdx++;
-      inp.value='';
-      const w=getWord();
-      document.getElementById('typing-word').textContent=w.vi;
-      inp.oninput=null;
-      inp.oninput=function(){window.checkTypingInput(this,getWord().de);};
-      document.getElementById('typing-acc').textContent=Math.round(_typingCorrect/(_typingCorrect+_typingWrong)*100)+'%';
-      const fb=document.getElementById('typing-fb');
-      if(fb){fb.textContent='✓';fb.style.color='var(--teal)';setTimeout(()=>{if(fb)fb.textContent='';},600);}
+  if(!page)return;
+  clearInterval(_tsTimer);_tsTimer=null;
+  const best=parseInt(localStorage.getItem('pd-typing-best')||'0');
+  page.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">⌨️ Tốc độ gõ</div></div>
+<div style="padding:0 1rem 2rem">
+<div style="margin-bottom:.9rem">
+  <div class="ts-label">Chế độ luyện tập</div>
+  <div class="ts-toggle" id="ts-mode-tog">
+    <button class="ts-tog active" data-v="translate" onclick="window._tsMod('translate',this)">🇻🇳 → 🇩🇪 Dịch từ</button>
+    <button class="ts-tog" data-v="spell" onclick="window._tsMod('spell',this)">🇩🇪 Chính tả</button>
+  </div>
+</div>
+<div style="margin-bottom:.9rem">
+  <div class="ts-label">Thời gian</div>
+  <div class="ts-toggle" id="ts-dur-tog">
+    <button class="ts-tog" onclick="window._tsDur(30,this)">30s</button>
+    <button class="ts-tog active" onclick="window._tsDur(60,this)">60s</button>
+    <button class="ts-tog" onclick="window._tsDur(120,this)">120s</button>
+  </div>
+</div>
+${best>0?`<div style="font-size:.8rem;color:var(--t2);margin-bottom:1rem">🏆 Kỷ lục: <b style="color:var(--yellow)">${best} WPM</b></div>`:''}
+<div id="ts-area"><div style="text-align:center;padding:3rem 1rem">
+  <div style="font-size:3rem;margin-bottom:1rem">⌨️</div>
+  <div style="color:var(--t2);font-size:.88rem;margin-bottom:1.5rem">Gõ đúng từ tiếng Đức — tự động chuyển khi đúng</div>
+  <button class="btn btn-primary" onclick="window._tsStart()">▶ Bắt đầu</button>
+</div></div>
+</div>`;
+  let _mode='translate',_dur=60;
+  window._tsMod=(v,btn)=>{_mode=v;document.querySelectorAll('#ts-mode-tog .ts-tog').forEach(b=>b.classList.remove('active'));btn.classList.add('active');};
+  window._tsDur=(v,btn)=>{_dur=v;document.querySelectorAll('#ts-dur-tog .ts-tog').forEach(b=>b.classList.remove('active'));btn.classList.add('active');};
+  window._tsStart=()=>{
+    clearInterval(_tsTimer);
+    const pool=shuffle(flatAll());
+    let idx=0,timeLeft=_dur,correct=0,total=0,skipped=0;
+    const hist=[];
+    const area=document.getElementById('ts-area');
+    if(!area)return;
+    function gw(){return pool[idx%pool.length];}
+    function renderChars(target,typed){
+      return target.split('').map((ch,i)=>{
+        if(i>=typed.length)return`<span class="ts-ch">${ch==' '?'&nbsp;':esc(ch)}</span>`;
+        return typed[i].toLowerCase()===ch.toLowerCase()?`<span class="ts-ch ok">${ch==' '?'&nbsp;':esc(ch)}</span>`:`<span class="ts-ch err">${ch==' '?'&nbsp;':esc(ch)}</span>`;
+      }).join('')+(typed.length>target.length?`<span class="ts-ch extra">${esc(typed.slice(target.length))}</span>`:'');
     }
+    function drawGame(){
+      const w=gw();
+      const elapsed=_dur-timeLeft;
+      const wpm=elapsed>0?Math.round(correct/(elapsed/60)):0;
+      const acc=total>0?Math.round(correct/total*100):100;
+      const pct=Math.round(timeLeft/_dur*100);
+      const tc=timeLeft<=10?'var(--red)':timeLeft<=20?'var(--orange)':'var(--teal)';
+      area.innerHTML=`<div class="ts-bar-wrap"><div class="ts-bar-fill" id="ts-bar" style="width:${pct}%;background:${tc}"></div></div>
+<div class="ts-stats-row">
+  <span class="ts-time" id="ts-t" style="color:${timeLeft<=10?'var(--red)':timeLeft<=20?'var(--orange)':'var(--yellow)'}">${timeLeft}s</span>
+  <span class="ts-stat">⚡ <b id="ts-wpm">${wpm}</b> WPM</span>
+  <span class="ts-stat">✓ <b>${correct}</b>/${total}</span>
+  <span class="ts-stat" style="color:${acc<80?'var(--red)':'var(--teal)'}">${acc}%</span>
+</div>
+<div class="ts-card" id="ts-card">
+  ${_mode==='translate'
+    ?`<div class="ts-plabel">Nghĩa tiếng Việt →</div><div class="ts-pvi" id="ts-pw">${esc(w.vi)}</div><div class="ts-phint">Gõ tiếng Đức bên dưới</div>`
+    :`<div class="ts-plabel">Từ tiếng Đức →</div><div class="ts-pde" id="ts-pw">${esc(w.de)}</div><div class="ts-phint">Gõ lại chính xác</div>`}
+  <div class="ts-chars" id="ts-chars">${renderChars(w.de,'')}</div>
+  <input class="ts-inp" id="ts-inp" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Gõ ở đây..." oninput="window._tsType(this)">
+</div>
+<div style="text-align:center;margin-top:.5rem">
+  <button class="btn" style="font-size:.75rem;padding:3px 12px;color:var(--t2)" onclick="window._tsSkip()">Bỏ qua →</button>
+</div>`;
+      document.getElementById('ts-inp')?.focus();
+      window._tsType=(inp)=>{
+        const typed=inp.value;
+        const target=gw().de;
+        const ch=document.getElementById('ts-chars');
+        if(ch)ch.innerHTML=renderChars(target,typed);
+        if(typed.toLowerCase().trim()===target.toLowerCase().trim()){
+          correct++;total++;idx++;hist.push({de:target,vi:gw().vi,ok:true});
+          inp.value='';
+          const nw=gw();
+          const pw=document.getElementById('ts-pw');
+          if(pw)pw.textContent=_mode==='translate'?nw.vi:nw.de;
+          const nc=document.getElementById('ts-chars');
+          if(nc)nc.innerHTML=renderChars(nw.de,'');
+          inp.oninput=null;inp.oninput=function(){window._tsType(this);};
+          const card=document.getElementById('ts-card');
+          if(card){card.classList.add('ts-ok');setTimeout(()=>card.classList.remove('ts-ok'),280);}
+          const el=document.getElementById('ts-wpm');
+          const ep=_dur-timeLeft;
+          if(el&&ep>0)el.textContent=Math.round(correct/(ep/60));
+        }
+      };
+    }
+    window._tsSkip=()=>{
+      const w=gw();hist.push({de:w.de,vi:w.vi,ok:false});total++;skipped++;idx++;
+      const inp=document.getElementById('ts-inp');if(inp)inp.value='';
+      const card=document.getElementById('ts-card');
+      if(card){card.classList.add('ts-err');setTimeout(()=>card.classList.remove('ts-err'),280);}
+      drawGame();
+    };
+    drawGame();
+    _tsTimer=setInterval(()=>{
+      timeLeft--;
+      const tel=document.getElementById('ts-t'),tbar=document.getElementById('ts-bar');
+      const tc=timeLeft<=10?'var(--red)':timeLeft<=20?'var(--orange)':'var(--teal)';
+      if(tel){tel.textContent=timeLeft+'s';tel.style.color=timeLeft<=10?'var(--red)':timeLeft<=20?'var(--orange)':'var(--yellow)';}
+      if(tbar){tbar.style.width=Math.round(timeLeft/_dur*100)+'%';tbar.style.background=tc;}
+      const ep=_dur-timeLeft;const wpmEl=document.getElementById('ts-wpm');
+      if(wpmEl&&ep>0)wpmEl.textContent=Math.round(correct/(ep/60));
+      if(timeLeft<=0){
+        clearInterval(_tsTimer);
+        const wpm=Math.round(correct/(_dur/60));
+        const acc=total>0?Math.round(correct/total*100):0;
+        const prevBest=parseInt(localStorage.getItem('pd-typing-best')||'0');
+        const isRec=wpm>prevBest;
+        try{if(isRec)localStorage.setItem('pd-typing-best',String(wpm));}catch(e){}
+        addXP(Math.min(correct*2,50),'Tốc độ gõ hoàn thành');
+        area.innerHTML=`<div class="ts-result">
+${isRec?'<div class="ts-new-rec">🎉 Kỷ lục mới!</div>':''}
+<div class="ts-big-wpm">${wpm}</div>
+<div style="color:var(--t2);font-size:.85rem;margin-bottom:1.2rem">WPM (từ / phút)</div>
+<div class="ts-result-stats">
+  <div class="ts-rs"><div class="ts-rv" style="color:var(--teal)">${acc}%</div><div class="ts-rl">Chính xác</div></div>
+  <div class="ts-rs"><div class="ts-rv" style="color:var(--green)">${correct}</div><div class="ts-rl">Đúng</div></div>
+  <div class="ts-rs"><div class="ts-rv" style="color:var(--red)">${skipped}</div><div class="ts-rl">Bỏ qua</div></div>
+  <div class="ts-rs"><div class="ts-rv" style="color:var(--yellow)">${Math.max(wpm,prevBest)}</div><div class="ts-rl">Kỷ lục</div></div>
+</div>
+${hist.length?`<div class="ts-hist">${hist.map(h=>`<div class="ts-hist-row"><span>${h.ok?'✅':'❌'}</span><span class="ts-hist-de">${esc(h.de)}</span><span class="ts-hist-vi">${esc(h.vi)}</span></div>`).join('')}</div>`:''}
+<button class="btn btn-primary" style="margin-top:.75rem" onclick="window._tsStart()">↺ Thử lại</button>
+</div>`;
+      }
+    },1000);
   };
-  _typingStart=Date.now();
-  _typingTimer=setInterval(()=>{
-    timeLeft--;
-    const el=document.getElementById('typing-time');
-    if(el) el.textContent=timeLeft+'s';
-    if(timeLeft<=0){
-      clearInterval(_typingTimer);
-      _typingRunning=false;
-      const elapsed=60;
-      const wpm=Math.round(_typingWords/(elapsed/60));
-      const acc=_typingWords?Math.round(_typingCorrect/(_typingCorrect+_typingWrong)*100):0;
-      // Save best score
-      const best=parseInt(localStorage.getItem('pd-typing-best')||'0');
-      if(wpm>best) localStorage.setItem('pd-typing-best',String(wpm));
-      const bestScore=Math.max(wpm,best);
-      if(wrap) wrap.innerHTML=`
-        <div class="typing-result">
-          <div style="font-size:2.5rem;margin-bottom:.5rem">⌨️</div>
-          <div style="font-size:1.4rem;font-weight:700;margin-bottom:.3rem">${wpm} WPM</div>
-          <div style="color:var(--t2);font-size:.85rem;margin-bottom:1rem">Tốc độ gõ</div>
-          <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:1.2rem">
-            <div style="text-align:center"><div style="font-size:1.2rem;font-weight:700;color:var(--teal)">${acc}%</div><div style="font-size:.72rem;color:var(--t3)">Độ chính xác</div></div>
-            <div style="text-align:center"><div style="font-size:1.2rem;font-weight:700;color:var(--yellow)">${_typingWords}</div><div style="font-size:.72rem;color:var(--t3)">Từ đã gõ</div></div>
-            <div style="text-align:center"><div style="font-size:1.2rem;font-weight:700;color:var(--purple)">${bestScore}</div><div style="font-size:.72rem;color:var(--t3)">Kỷ lục WPM</div></div>
-          </div>
-          <button class="ib pri" style="font-size:.9rem;padding:9px 24px" onclick="startTypingGame()">↺ Thử lại</button>
-        </div>`;
+}
+window.retryTyping=function(){window._tsStart&&window._tsStart();};
+window.startTypingGame=function(){window._tsStart&&window._tsStart();};
+
+// ════════════════════════════════════════════════════════
+// NEW FEATURES: Abbr, Emergency FC, Shift Sim, Pflegegrad, Pronunciation
+// ════════════════════════════════════════════════════════
+function renderAbbr(){
+  const el=document.getElementById('page-abbr');
+  if(!el)return;
+  let q='',cat='all';
+  function draw(){
+    const cats=['all',...new Set(ABBR_DATA.map(a=>a.cat))];
+    const filtered=ABBR_DATA.filter(a=>{
+      const matchCat=cat==='all'||a.cat===cat;
+      const matchQ=!q||a.abbr.toLowerCase().includes(q.toLowerCase())||a.full.toLowerCase().includes(q.toLowerCase())||a.vi.toLowerCase().includes(q.toLowerCase());
+      return matchCat&&matchQ;
+    });
+    const catColors={Vital:'var(--red)',Medikamente:'var(--blue)',Diagnose:'var(--orange)',Dokument:'var(--teal)',Pflege:'var(--purple)'};
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🏷️ Từ viết tắt y tế</div></div>
+<div style="padding:0 1rem 1rem">
+<input class="abbr-search" id="abbr-q" placeholder="Tìm kiếm: RR, Blutdruck, huyết áp..." value="${esc(q)}" oninput="window._abbrSearch(this.value)">
+<div class="abbr-chips">${cats.map(c=>`<button class="abbr-chip${cat===c?' active':''}" onclick="window._abbrCat('${esc(c)}')">${c==='all'?'Tất cả':c}</button>`).join('')}</div>
+<div class="abbr-grid">${filtered.map(a=>`<div class="abbr-card">
+  <span class="abbr-short" style="color:${catColors[a.cat]||'var(--blue)'}">${esc(a.abbr)}</span>
+  <div class="abbr-long">${esc(a.full)}</div>
+  <div class="abbr-vi">${esc(a.vi)}</div>
+  <div class="abbr-example">${esc(a.example)}</div>
+</div>`).join('')}${filtered.length===0?'<p style="color:var(--t3);grid-column:1/-1;text-align:center;padding:2rem">Không tìm thấy kết quả</p>':''}</div>
+</div>`;
+  }
+  window._abbrSearch=v=>{q=v;draw();document.getElementById('abbr-q')&&(document.getElementById('abbr-q').focus())};
+  window._abbrCat=v=>{cat=v;draw()};
+  draw();
+}
+
+function renderEmergency(){
+  const el=document.getElementById('page-emergency-fc');
+  if(!el)return;
+  _emState={idx:0,flipped:false,known:0,total:EMERGENCY_CARDS.length};
+  function draw(){
+    if(_emState.idx>=EMERGENCY_CARDS.length){
+      el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🚨 Flashcard Khẩn Cấp</div></div>
+<div style="padding:1rem;text-align:center">
+<div class="em-complete" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:var(--rl);padding:2rem;margin:1rem 0">
+  <div style="font-size:2.5rem">🏆</div>
+  <h3 style="color:var(--red);margin:.5rem 0">Hoàn thành!</h3>
+  <p>Đã học <b>${_emState.known}</b>/${EMERGENCY_CARDS.length} thẻ</p>
+  <p style="color:var(--t2);font-size:.85rem">+20 XP được thêm vào tài khoản</p>
+  <button class="btn" style="margin-top:1rem;background:var(--red);color:#fff" onclick="renderEmergency()">Học lại 🔄</button>
+</div></div>`;
+      addXP(20,'Hoàn thành flashcard khẩn cấp');
+      progressMission('flash5');
+      return;
     }
-  },1000);
-};
-window.retryTyping=function(){startTypingGame();};
+    const card=EMERGENCY_CARDS[_emState.idx];
+    const pct=Math.round((_emState.idx/EMERGENCY_CARDS.length)*100);
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🚨 Flashcard Khẩn Cấp</div></div>
+<div style="padding:0 1rem 1rem">
+<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
+  <div style="flex:1;height:5px;background:var(--b1);border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--red);transition:.3s"></div></div>
+  <span style="font-size:.75rem;color:var(--t3)">${_emState.idx+1}/${EMERGENCY_CARDS.length}</span>
+</div>
+<div class="em-card${_emState.flipped?' flipped':''}" onclick="window._emFlip()">
+  <div class="em-front">
+    <div class="em-de">${esc(card.de)}</div>
+    <button class="em-speak" onclick="event.stopPropagation();speakDE('${esc(card.de)}')" title="Nghe">🔊</button>
+    <div class="em-tap-hint">Nhấn để xem nghĩa</div>
+  </div>
+  <div class="em-back">
+    <div class="em-vi">${esc(card.vi)}</div>
+    <div class="em-ctx">${esc(card.ctx)}</div>
+  </div>
+</div>
+${_emState.flipped?`<div style="display:flex;gap:.75rem;margin-top:1rem">
+  <button class="btn" style="flex:1;background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3)" onclick="window._emNext(false)">Cần ôn 🔄</button>
+  <button class="btn" style="flex:1;background:rgba(37,203,168,.1);color:var(--teal);border:1px solid rgba(37,203,168,.3)" onclick="window._emNext(true)">Đã biết ✓</button>
+</div>`:'<div style="text-align:center;color:var(--t3);font-size:.8rem;margin-top:.75rem">Nhấn vào thẻ để lật</div>'}
+</div>`;
+  }
+  window._emFlip=()=>{_emState.flipped=!_emState.flipped;draw();};
+  window._emNext=(known)=>{if(known)_emState.known++;_emState.idx++;_emState.flipped=false;draw();};
+  draw();
+}
+
+function renderShiftSim(){
+  const el=document.getElementById('page-shift-sim');
+  if(!el)return;
+  _ssState={idx:0,answered:false,score:0,done:false};
+  function draw(){
+    if(_ssState.done){
+      const pct=Math.round((_ssState.score/SHIFT_SCENARIOS.length)*100);
+      const msg=pct>=80?'Xuất sắc! Bạn là điều dưỡng giỏi! 🏆':pct>=60?'Tốt! Tiếp tục cố gắng! 💪':'Cần ôn thêm kiến thức điều dưỡng! 📚';
+      el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🏥 Ca Làm Việc</div></div>
+<div style="padding:1rem;text-align:center">
+<div style="background:linear-gradient(135deg,rgba(37,203,168,.08),var(--s2));border:1px solid rgba(37,203,168,.25);border-radius:var(--rl);padding:2rem;margin:1rem 0">
+  <div style="font-size:2.5rem">🏥</div>
+  <h3 style="color:var(--teal);margin:.5rem 0">Ca trực hoàn thành!</h3>
+  <div style="font-size:2rem;font-weight:700;color:var(--tx)">${_ssState.score}/${SHIFT_SCENARIOS.length}</div>
+  <p style="color:var(--t2)">${msg}</p>
+  <p style="color:var(--t3);font-size:.8rem">+${_ssState.score*10} XP được thêm vào tài khoản</p>
+  <button class="btn btn-primary" style="margin-top:1rem" onclick="renderShiftSim()">Ca trực mới 🔄</button>
+</div></div>`;
+      progressMission('ex1');
+      return;
+    }
+    const sc=SHIFT_SCENARIOS[_ssState.idx];
+    const pct=Math.round((_ssState.idx/SHIFT_SCENARIOS.length)*100);
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🏥 Ca Làm Việc</div></div>
+<div style="padding:0 1rem 1rem">
+<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
+  <div style="flex:1;height:5px;background:var(--b1);border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--teal);transition:.3s"></div></div>
+  <span style="font-size:.75rem;color:var(--t3)">Ca ${_ssState.idx+1}/${SHIFT_SCENARIOS.length}</span>
+</div>
+<div class="ss-patient">
+  <div class="ss-patient-info">
+    <span class="ss-room">${esc(sc.room)}</span>
+    <span class="ss-name">${esc(sc.name)}, ${sc.age} Jahre</span>
+    <span class="ss-diag">${esc(sc.diag)}</span>
+  </div>
+  <div class="ss-situation"><b>${esc(sc.situation)}</b></div>
+  <div class="ss-situation-vi">${esc(sc.situationVI)}</div>
+</div>
+<div class="ss-opts" id="ss-opts">${sc.options.map((o,i)=>`<button class="ss-opt" onclick="window._ssAnswer(${i})">${esc(o.text)}</button>`).join('')}</div>
+<div id="ss-explain" style="display:none"></div>
+<div id="ss-next-btn" style="display:none;margin-top:.75rem"><button class="btn btn-primary" onclick="window._ssNext()">${_ssState.idx+1<SHIFT_SCENARIOS.length?'Bệnh nhân tiếp theo →':'Kết thúc ca trực 🏁'}</button></div>
+</div>`;
+  }
+  window._ssAnswer=(i)=>{
+    if(_ssState.answered)return;
+    _ssState.answered=true;
+    const sc=SHIFT_SCENARIOS[_ssState.idx];
+    const opts=document.querySelectorAll('.ss-opt');
+    opts.forEach((b,j)=>{
+      b.disabled=true;
+      if(sc.options[j].correct)b.classList.add('correct');
+      else if(j===i&&!sc.options[j].correct)b.classList.add('wrong');
+    });
+    const ex=document.getElementById('ss-explain');
+    const chosen=sc.options[i];
+    if(ex){ex.style.display='block';ex.innerHTML=`<div class="ss-explain-box ${chosen.correct?'correct':'wrong'}"><b>${chosen.correct?'✅ Richtig!':'❌ Falsch!'}</b> ${esc(chosen.explain)}</div>`;}
+    if(chosen.correct){_ssState.score++;addXP(10,'Ca làm việc: câu đúng');}
+    const nb=document.getElementById('ss-next-btn');
+    if(nb)nb.style.display='block';
+  };
+  window._ssNext=()=>{_ssState.idx++;_ssState.answered=false;if(_ssState.idx>=SHIFT_SCENARIOS.length)_ssState.done=true;draw();};
+  draw();
+}
+
+function renderPflegegrad(){
+  const el=document.getElementById('page-pflegegrad');
+  if(!el)return;
+  if(!_pgState||_pgState.tab===undefined)_pgState={tab:'info',qIdx:0,score:0,done:false};
+  function draw(){
+    const isInfo=_pgState.tab==='info';
+    let content='';
+    if(isInfo){
+      content=`<div class="pg-ref-grid">${PG_DATA.map(pg=>`<div class="pg-card" style="border-left:4px solid ${pg.color}">
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+    <span class="pg-grade" style="background:${pg.color};color:#fff">PG ${pg.grade}</span>
+    <span style="font-size:.75rem;color:var(--t3)">${esc(pg.score)} Punkte</span>
+  </div>
+  <div style="font-size:.82rem;color:var(--tx);font-weight:600;margin-bottom:3px">${esc(pg.desc)}</div>
+  <div style="font-size:.78rem;color:var(--t2);margin-bottom:.5rem">${esc(pg.vi)}</div>
+  <div style="font-size:.76rem;color:var(--t3)">💶 Pflegegeld: <b>${esc(pg.geld)}</b> | Sachleistung: <b>${esc(pg.sach)}</b></div>
+  <div style="font-size:.76rem;color:var(--t3);margin-top:3px">📋 ${esc(pg.example)}</div>
+</div>`).join('')}</div>
+<div style="margin-top:1.2rem">
+<h4 style="color:var(--t2);font-size:.82rem;margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.05em">6 Module des NBA</h4>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px">
+${[
+  {n:1,t:'Mobilität',vi:'Di chuyển',w:'10%'},
+  {n:2,t:'Kognition & Kommunikation',vi:'Nhận thức & Giao tiếp',w:'15%'},
+  {n:3,t:'Verhaltensweisen',vi:'Hành vi & Tâm lý',w:'15%'},
+  {n:4,t:'Selbstversorgung',vi:'Tự chăm sóc',w:'40%'},
+  {n:5,t:'Therapie & Krankheit',vi:'Điều trị & Bệnh tật',w:'20%'},
+  {n:6,t:'Alltagsleben & Soziales',vi:'Cuộc sống hàng ngày',w:'– (ergänzend)'},
+].map(m=>`<div style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:.6rem .8rem">
+  <span style="font-size:.72rem;font-weight:700;color:var(--purple)">Modul ${m.n}</span>
+  <div style="font-size:.8rem;color:var(--tx)">${m.t}</div>
+  <div style="font-size:.73rem;color:var(--t3)">${m.vi} · ${m.w}</div>
+</div>`).join('')}
+</div></div>`;
+    } else if(_pgState.done){
+      const pass=_pgState.score>=6;
+      content=`<div style="text-align:center;padding:1rem">
+<div style="font-size:2.5rem">${pass?'🏆':'📚'}</div>
+<h3 style="color:${pass?'var(--teal)':'var(--orange)'}">${pass?'Xuất sắc!':'Cần ôn thêm!'}</h3>
+<p>${_pgState.score}/8 câu đúng ${pass?'– Bạn hiểu rõ hệ thống Pflegegrad!':'– Hãy đọc lại phần Tham khảo'}</p>
+${pass?'<p style="color:var(--t3);font-size:.8rem">+15 XP được thêm vào</p>':''}
+<button class="btn" style="margin-top:1rem" onclick="window._pgRestart()">Làm lại Quiz</button>
+</div>`;
+      if(pass)addXP(15,'Pflegegrad quiz hoàn thành');
+    } else {
+      const q=PG_QUIZ[_pgState.qIdx];
+      content=`<div style="font-size:.75rem;color:var(--t3);margin-bottom:.75rem">Câu ${_pgState.qIdx+1}/${PG_QUIZ.length} · ${_pgState.score} đúng</div>
+<div class="pg-question">${esc(q.q)}</div>
+<div style="display:flex;flex-direction:column;gap:8px;margin-top:.75rem" id="pg-opts">
+${q.opts.map((o,i)=>`<button class="ss-opt" onclick="window._pgAnswer(${i})">${esc(o)}</button>`).join('')}
+</div>
+<div id="pg-explain" style="display:none"></div>
+<div id="pg-next" style="display:none;margin-top:.75rem"><button class="btn btn-primary" onclick="window._pgNext()">${_pgState.qIdx+1<PG_QUIZ.length?'Câu tiếp →':'Xem kết quả'}</button></div>`;
+    }
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">📋 Pflegegrad</div></div>
+<div style="padding:0 1rem 1rem">
+<div style="display:flex;gap:4px;background:var(--s2);border-radius:var(--r);padding:3px;width:fit-content;margin-bottom:1rem">
+  <button class="pg-tab${isInfo?' active':''}" onclick="window._pgTab('info')">📋 Tham khảo</button>
+  <button class="pg-tab${!isInfo?' active':''}" onclick="window._pgTab('quiz')">🎯 Kiểm tra</button>
+</div>
+${content}
+</div>`;
+  }
+  window._pgTab=(t)=>{_pgState.tab=t;if(t==='quiz')_pgState={tab:'quiz',qIdx:0,score:0,done:false};draw();};
+  window._pgAnswer=(i)=>{
+    const q=PG_QUIZ[_pgState.qIdx];
+    const opts=document.querySelectorAll('#pg-opts .ss-opt');
+    opts.forEach((b,j)=>{b.disabled=true;if(j===q.correct)b.classList.add('correct');else if(j===i&&i!==q.correct)b.classList.add('wrong');});
+    if(i===q.correct)_pgState.score++;
+    const ex=document.getElementById('pg-explain');
+    if(ex){ex.style.display='block';ex.innerHTML=`<div class="ss-explain-box ${i===q.correct?'correct':'wrong'}" style="margin-top:.5rem"><b>${i===q.correct?'✅ Richtig!':'❌ Falsch!'}</b> ${esc(q.exp)}</div>`;}
+    const nb=document.getElementById('pg-next');if(nb)nb.style.display='block';
+  };
+  window._pgNext=()=>{_pgState.qIdx++;if(_pgState.qIdx>=PG_QUIZ.length)_pgState.done=true;draw();};
+  window._pgRestart=()=>{_pgState={tab:'quiz',qIdx:0,score:0,done:false};draw();};
+  draw();
+}
+
+function renderPronunciation(){
+  const el=document.getElementById('page-pronunciation');
+  if(!el)return;
+  let openIdx=-1;
+  function draw(){
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🗣️ Phát âm tiếng Đức</div></div>
+<div style="padding:0 1rem 1rem">
+<p style="color:var(--t2);font-size:.82rem;margin-bottom:1rem">Nhấn vào thẻ để nghe ví dụ và xem hướng dẫn phát âm</p>
+<div class="pron-grid">${PRONUNCIATION_GUIDE.map((p,i)=>`<div class="pron-card${openIdx===i?' open':''}" onclick="window._pronToggle(${i})">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <span class="pron-sound">${esc(p.sound)}</span>
+      <span class="pron-ipa" style="margin-left:.4rem">${esc(p.ipa)}</span>
+    </div>
+    <span style="color:var(--t3);font-size:.7rem">${openIdx===i?'▲':'▼'}</span>
+  </div>
+  <div class="pron-vi">${esc(p.hint)}</div>
+  ${openIdx===i?`<div class="pron-details">
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
+      <span style="font-size:1.1rem;font-weight:600;color:var(--tx)">${esc(p.word)}</span>
+      <button class="pron-listen" onclick="event.stopPropagation();speakDE('${esc(p.word)}')" title="Nghe">🔊</button>
+      <span style="font-size:.78rem;color:var(--t3)">${esc(p.meaning)}</span>
+    </div>
+  </div>`:''}
+</div>`).join('')}
+</div>
+</div>`;
+  }
+  window._pronToggle=(i)=>{openIdx=openIdx===i?-1:i;draw();};
+  draw();
+}
 
 // ════════════════════════════════════════════════════════
 // NEW FEATURES: Abbr, Emergency FC, Shift Sim, Pflegegrad, Pronunciation
