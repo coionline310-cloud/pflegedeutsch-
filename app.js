@@ -429,6 +429,145 @@ let DIALOGUES=[
   ]},
 ];
 
+const ABBR_DATA=[
+  {abbr:'RR',full:'Blutdruck',vi:'Huyết áp',example:'RR 120/80 mmHg – normal',cat:'Vital'},
+  {abbr:'HF',full:'Herzfrequenz',vi:'Nhịp tim',example:'HF 72/min – normal',cat:'Vital'},
+  {abbr:'AF',full:'Atemfrequenz',vi:'Nhịp thở',example:'AF 16/min – normal',cat:'Vital'},
+  {abbr:'T',full:'Temperatur',vi:'Nhiệt độ',example:'T 38,5°C – subfebril',cat:'Vital'},
+  {abbr:'SpO₂',full:'Sauerstoffsättigung',vi:'Độ bão hòa oxy',example:'SpO₂ 96%',cat:'Vital'},
+  {abbr:'BZ',full:'Blutzucker',vi:'Đường huyết',example:'BZ 110 mg/dl nüchtern',cat:'Vital'},
+  {abbr:'GCS',full:'Glasgow Coma Scale',vi:'Thang điểm hôn mê',example:'GCS 15 – voll orientiert',cat:'Vital'},
+  {abbr:'VZ',full:'Vitalzeichen',vi:'Dấu hiệu sinh tồn',example:'VZ stündlich messen',cat:'Vital'},
+  {abbr:'i.v.',full:'intravenös',vi:'Tiêm tĩnh mạch',example:'Antibiose i.v. geben',cat:'Medikamente'},
+  {abbr:'s.c.',full:'subkutan',vi:'Tiêm dưới da',example:'Insulin s.c. injizieren',cat:'Medikamente'},
+  {abbr:'i.m.',full:'intramuskulär',vi:'Tiêm bắp',example:'Vitamin B12 i.m.',cat:'Medikamente'},
+  {abbr:'p.o.',full:'per os',vi:'Uống qua miệng',example:'Tablette p.o. nehmen',cat:'Medikamente'},
+  {abbr:'NW',full:'Nebenwirkung',vi:'Tác dụng phụ',example:'Mögliche NW: Übelkeit',cat:'Medikamente'},
+  {abbr:'KI',full:'Kontraindikation',vi:'Chống chỉ định',example:'KI bei Niereninsuffizienz',cat:'Medikamente'},
+  {abbr:'EKG',full:'Elektrokardiogramm',vi:'Điện tâm đồ',example:'12-Kanal-EKG schreiben',cat:'Diagnose'},
+  {abbr:'OP',full:'Operation',vi:'Phẫu thuật',example:'OP morgen früh 8 Uhr',cat:'Diagnose'},
+  {abbr:'DM',full:'Diabetes mellitus',vi:'Đái tháo đường',example:'DM Typ 2 seit 2010',cat:'Diagnose'},
+  {abbr:'HT',full:'Hypertonie',vi:'Tăng huyết áp',example:'HT medikamentös eingestellt',cat:'Diagnose'},
+  {abbr:'KHK',full:'Koronare Herzkrankheit',vi:'Bệnh mạch vành',example:'KHK, Z.n. Stent 2019',cat:'Diagnose'},
+  {abbr:'COPD',full:'Chron. obstruktive Lungenerkrankung',vi:'Bệnh phổi tắc nghẽn mạn tính',example:'COPD GOLD III',cat:'Diagnose'},
+  {abbr:'AZ',full:'Allgemeinzustand',vi:'Tình trạng toàn thân',example:'AZ reduziert',cat:'Dokument'},
+  {abbr:'EZ',full:'Ernährungszustand',vi:'Tình trạng dinh dưỡng',example:'EZ gut, BMI 22',cat:'Dokument'},
+  {abbr:'PA',full:'Pflegeanamnese',vi:'Tiền sử điều dưỡng',example:'PA bei Aufnahme erheben',cat:'Dokument'},
+  {abbr:'PE',full:'Pflegeplanung',vi:'Kế hoạch điều dưỡng',example:'PE täglich aktualisieren',cat:'Dokument'},
+  {abbr:'MDK',full:'Medizinischer Dienst',vi:'Dịch vụ y tế kiểm định',example:'MDK-Begutachtung am Dienstag',cat:'Pflege'},
+  {abbr:'PG',full:'Pflegegrad',vi:'Mức độ chăm sóc',example:'PG 3 anerkannt',cat:'Pflege'},
+  {abbr:'KH',full:'Krankenhaus',vi:'Bệnh viện',example:'Einweisung ins KH',cat:'Pflege'},
+  {abbr:'PDL',full:'Pflegedienstleitung',vi:'Trưởng phòng điều dưỡng',example:'PDL informieren',cat:'Pflege'},
+  {abbr:'SGB',full:'Sozialgesetzbuch',vi:'Bộ luật xã hội',example:'SGB XI Pflegeversicherung',cat:'Pflege'},
+  {abbr:'WV',full:'Wundversorgung',vi:'Chăm sóc vết thương',example:'WV täglich durchführen',cat:'Pflege'},
+];
+const EMERGENCY_CARDS=[
+  {de:'Notruf',vi:'Cuộc gọi khẩn cấp',ctx:'Einen Notruf absetzen – 112 anrufen'},
+  {de:'Sturz',vi:'Té ngã',ctx:'Der Patient ist gestürzt – nicht bewegen!'},
+  {de:'Bewusstlos',vi:'Bất tỉnh',ctx:'Patient bewusstlos – Notruf, Atemwege freihalten'},
+  {de:'Atemnot',vi:'Khó thở',ctx:'Patient hat Atemnot – aufsetzen, O₂ geben'},
+  {de:'Herzstillstand',vi:'Ngừng tim',ctx:'Herzstillstand – sofort Reanimation beginnen'},
+  {de:'Reanimation',vi:'Hồi sức CPR',ctx:'30 Kompressionen : 2 Beatmungen'},
+  {de:'Defibrillator',vi:'Máy sốc điện AED',ctx:'AED holen und einschalten'},
+  {de:'Starke Blutung',vi:'Chảy máu nhiều',ctx:'Wunde abdrücken, Arzt rufen'},
+  {de:'Krampfanfall',vi:'Co giật',ctx:'Sicherheit gewährleisten, Zeit stoppen, Arzt rufen'},
+  {de:'Anaphylaxie',vi:'Sốc phản vệ',ctx:'Adrenalin-Pen, Notruf, hinlegen'},
+  {de:'Hypoglykämie',vi:'Hạ đường huyết',ctx:'BZ < 70 mg/dl – Traubenzucker geben'},
+  {de:'Hypertensive Krise',vi:'Cơn tăng huyết áp',ctx:'RR > 180/110 – Arzt sofort informieren'},
+  {de:'Aspiration',vi:'Hít sặc dị vật',ctx:'Heimlich-Griff bei wachem Patient'},
+  {de:'Verwirrtheit akut',vi:'Lú lẫn cấp tính',ctx:'Delir – Orientierung geben, Sicherheit'},
+  {de:'Sturzsicherung',vi:'Phòng ngừa té ngã',ctx:'Bettgitter, Antirutschmatte, Rufanlage'},
+  {de:'Sofortmaßnahmen',vi:'Biện pháp khẩn cấp',ctx:'ABCDE-Schema anwenden'},
+  {de:'Notarzt',vi:'Bác sĩ cấp cứu',ctx:'Notarzt rufen – 112'},
+  {de:'Intensivstation',vi:'ICU – Hồi sức tích cực',ctx:'Verlegung auf die ITS'},
+  {de:'Erste Hilfe',vi:'Sơ cứu ban đầu',ctx:'Stabile Seitenlage bei Bewusstlosigkeit'},
+  {de:'Schockzeichen',vi:'Dấu hiệu sốc',ctx:'Blass, kalt, RR↓, HF↑ – Schocklagerung'},
+];
+const SHIFT_SCENARIOS=[
+  {room:'Zimmer 12',name:'Herr Müller',age:78,diag:'Herzinsuffizienz',
+   situation:'Der Patient klingelt und sagt: "Ich habe starke Schmerzen im Bauch, NRS 7."',
+   situationVI:'Bệnh nhân bấm chuông: "Tôi đau bụng rất dữ, mức độ 7/10"',
+   options:[
+     {text:'Den Arzt sofort informieren, Schmerzmittel erst nach Anordnung',correct:true,explain:'Richtig! Bei NRS 7 entscheidet der Arzt. Ohne Anordnung keine Medikamente.'},
+     {text:'Dem Patienten selbst eine Schmerztablette geben',correct:false,explain:'Falsch! Medikamente nur nach ärztlicher Anordnung geben.'},
+     {text:'"Das wird bald besser" sagen und weggehen',correct:false,explain:'Falsch! Starke Schmerzen müssen sofort behandelt werden.'},
+     {text:'Den Patienten bitten zu warten bis zur nächsten Visite',correct:false,explain:'Falsch! NRS 7 ist dringend – nicht warten!'},
+   ]},
+  {room:'Zimmer 5',name:'Frau Schmidt',age:84,diag:'Demenz, Pflegegrad 4',
+   situation:'Sie finden die Patientin auf dem Boden liegend neben dem Bett. Sie ist wach.',
+   situationVI:'Bạn thấy bệnh nhân nằm trên sàn cạnh giường. Bà vẫn còn tỉnh.',
+   options:[
+     {text:'Nicht bewegen, Notruf absetzen, Vitalzeichen prüfen, beruhigen',correct:true,explain:'Richtig! Bei Sturz erst prüfen, nie sofort bewegen – Fraktur möglich.'},
+     {text:'Patientin sofort aufheben und ins Bett legen',correct:false,explain:'Falsch! Vor dem Bewegen Verletzung ausschließen.'},
+     {text:'Warten bis ein Kollege kommt',correct:false,explain:'Falsch! Sofort versorgen und Hilfe rufen.'},
+     {text:'Patientin bitten selbst aufzustehen',correct:false,explain:'Falsch! Nach Sturz nicht ohne Unterstützung aufstehen lassen.'},
+   ]},
+  {room:'Zimmer 8',name:'Herr Braun',age:65,diag:'DM Typ 2, Hypertonie',
+   situation:'Der Patient verweigert seine Medikamente: "Ich nehme die Tabletten nicht!"',
+   situationVI:'Bệnh nhân từ chối uống thuốc: "Tôi không uống đâu!"',
+   options:[
+     {text:'Gründe erfragen, informieren, dokumentieren, Arzt informieren',correct:true,explain:'Richtig! Patientenautonomie respektieren, aber Dokumentation und Arzt sind Pflicht.'},
+     {text:'Medikamente heimlich ins Essen mischen',correct:false,explain:'Falsch! Das ist ein schwerer Rechtsverstoß.'},
+     {text:'Den Patienten zwingen',correct:false,explain:'Falsch! Zwang ist verboten.'},
+     {text:'Medikamente weglassen ohne Dokumentation',correct:false,explain:'Falsch! Immer dokumentieren und Arzt informieren.'},
+   ]},
+  {room:'Zimmer 3',name:'Frau Weber',age:91,diag:'Hypertonie, KHK',
+   situation:'RR 185/115, HF 92. Die Patientin klagt über Kopfschmerzen.',
+   situationVI:'Huyết áp 185/115, nhịp tim 92. Bệnh nhân than đau đầu.',
+   options:[
+     {text:'Sofort Arzt benachrichtigen, hinlegen lassen, Ruhe, erneut messen',correct:true,explain:'Richtig! RR > 180/110 mit Symptomen = hypertensive Krise. Arzt sofort!'},
+     {text:'Selbst ein Blutdruckmedikament geben',correct:false,explain:'Falsch! Medikamente nur nach ärztlicher Anordnung.'},
+     {text:'Abwarten und in einer Stunde messen',correct:false,explain:'Falsch! Hypertensive Krise ist ein Notfall.'},
+     {text:'Patientin aufstehen lassen',correct:false,explain:'Falsch! Bei hypertensiver Krise: Ruhe und hinlegen.'},
+   ]},
+  {room:'Zimmer 15',name:'Herr Fischer',age:72,diag:'Demenz, Pflegegrad 3',
+   situation:'Der Patient ist agitiert und möchte das Haus verlassen: "Ich muss nach Hause!"',
+   situationVI:'Bệnh nhân kích động muốn rời đi: "Tôi phải về nhà!"',
+   options:[
+     {text:'Ruhig ansprechen, validieren, ablenken, Sicherheit gewährleisten',correct:true,explain:'Richtig! Validation und Ablenkung – auf Emotion eingehen, nicht auf Inhalt.'},
+     {text:'Den Patienten laut anschreien',correct:false,explain:'Falsch! Schreien verstärkt die Agitation bei Demenz.'},
+     {text:'Zimmertür von außen abschließen',correct:false,explain:'Falsch! Freiheitsentzug ohne richterliche Genehmigung ist illegal.'},
+     {text:'Patienten ignorieren',correct:false,explain:'Falsch! Demenzpatienten brauchen Zuwendung.'},
+   ]},
+];
+const PG_DATA=[
+  {grade:1,score:'12,5–26,9',color:'var(--green)',desc:'Geringe Beeinträchtigung der Selbstständigkeit',vi:'Giảm nhẹ khả năng tự chăm sóc',geld:'–',sach:'Entlastungsbetrag 125€',example:'Kann gehen, braucht gelegentlich Hilfe'},
+  {grade:2,score:'27–47,4',color:'var(--blue)',desc:'Erhebliche Beeinträchtigung der Selbstständigkeit',vi:'Giảm đáng kể khả năng tự chăm sóc',geld:'332€',sach:'761€',example:'Hilfe beim Anziehen, Waschen nötig'},
+  {grade:3,score:'47,5–69,9',color:'var(--orange)',desc:'Schwere Beeinträchtigung der Selbstständigkeit',vi:'Giảm nặng khả năng tự chăm sóc',geld:'573€',sach:'1.432€',example:'Umfangreiche Hilfe bei Körperpflege'},
+  {grade:4,score:'70–89,9',color:'var(--red)',desc:'Schwerste Beeinträchtigung der Selbstständigkeit',vi:'Giảm rất nặng, gần như phụ thuộc hoàn toàn',geld:'765€',sach:'1.778€',example:'Fast vollständig pflegeabhängig'},
+  {grade:5,score:'90–100',color:'var(--purple)',desc:'Schwerste Beeinträchtigung + besondere Anforderungen',vi:'Nặng nhất, yêu cầu chăm sóc đặc biệt',geld:'947€',sach:'2.200€',example:'Beatmungspflichtig, intensivpflichtig'},
+];
+const PG_QUIZ=[
+  {q:'Welcher Pflegegrad bei 35 Punkten im NBA?',opts:['PG 1','PG 2','PG 3','PG 4'],correct:1,exp:'PG 2: 27–47,4 Punkte = erhebliche Beeinträchtigung'},
+  {q:'Patient kann nicht selbst essen, trinken oder Toilette benutzen. Wahrscheinlich?',opts:['PG 2','PG 3','PG 4','PG 5'],correct:2,exp:'PG 4: schwerste Beeinträchtigung, fast vollständig pflegeabhängig'},
+  {q:'Was misst das NBA (Neues Begutachtungsassessment)?',opts:['Pflegestunden pro Tag','Grad der Selbstständigkeit','Anzahl der Erkrankungen','Medikamentenbedarf'],correct:1,exp:'NBA misst den Grad der Selbstständigkeit in 6 Modulen'},
+  {q:'Welches Modul hat die höchste Gewichtung im NBA?',opts:['Modul 1 – Mobilität','Modul 3 – Verhaltensweisen','Modul 4 – Selbstversorgung','Modul 6 – Alltagsleben'],correct:2,exp:'Modul 4 (Selbstversorgung) hat 40% Gewichtung'},
+  {q:'Pflegegeld bei Pflegegrad 3?',opts:['332€/Monat','573€/Monat','765€/Monat','947€/Monat'],correct:1,exp:'PG 3: Pflegegeld 573€/Monat'},
+  {q:'Wer führt die Pflegegradbegutachtung durch?',opts:['Hausarzt','MDK / Medicproof','Krankenhaus','Sozialamt'],correct:1,exp:'MDK (bei gesetzl. KV) oder Medicproof (bei privater KV)'},
+  {q:'Bei welchem Pflegegrad gibt es keinen Anspruch auf Pflegegeld?',opts:['PG 1','PG 2','PG 3','PG 4'],correct:0,exp:'PG 1: nur Entlastungsbetrag 125€, kein Pflegegeld'},
+  {q:'Was bedeutet "Pflegesachleistung"?',opts:['Geld direkt an Pflegebedürftigen','Leistungen durch ambulanten Pflegedienst','Stationäre Heimunterbringung','Hilfsmittel wie Rollator'],correct:1,exp:'Pflegesachleistung = professioneller Pflegedienst erbringt Leistungen'},
+];
+const PRONUNCIATION_GUIDE=[
+  {sound:'ä',ipa:'/ɛ/',hint:"như 'e' trong 'xe'",word:'Zähne',meaning:'Răng'},
+  {sound:'ö',ipa:'/ø/',hint:"môi tròn, nói 'e'",word:'Körper',meaning:'Cơ thể'},
+  {sound:'ü',ipa:'/y/',hint:"môi tròn, nói 'i'",word:'Stühle',meaning:'Ghế'},
+  {sound:'ch (i/e)',ipa:'/ç/',hint:"như 'h' nhẹ ở cổ họng",word:'ich',meaning:'Tôi'},
+  {sound:'ch (a/o/u)',ipa:'/x/',hint:"như 'kh' tiếng Việt",word:'Bauch',meaning:'Bụng'},
+  {sound:'sch',ipa:'/ʃ/',hint:"như 'sh' tiếng Anh",word:'Schmerz',meaning:'Cơn đau'},
+  {sound:'st (đầu)',ipa:'/ʃt/',hint:"đọc là 'sht'",word:'Stethoskop',meaning:'Ống nghe'},
+  {sound:'sp (đầu)',ipa:'/ʃp/',hint:"đọc là 'shp'",word:'Sprache',meaning:'Ngôn ngữ'},
+  {sound:'w',ipa:'/v/',hint:"đọc như 'v' tiếng Việt",word:'Wunde',meaning:'Vết thương'},
+  {sound:'v',ipa:'/f/',hint:"đọc như 'f'",word:'Verband',meaning:'Băng bó'},
+  {sound:'z',ipa:'/ts/',hint:"đọc như 'ts'",word:'Zunge',meaning:'Lưỡi'},
+  {sound:'ei',ipa:'/aɪ/',hint:"đọc như 'ai'",word:'Bein',meaning:'Chân'},
+  {sound:'ie',ipa:'/iː/',hint:"đọc như 'i' dài",word:'Fieber',meaning:'Sốt'},
+  {sound:'eu/äu',ipa:'/ɔɪ/',hint:"đọc như 'oi'",word:'Häufig',meaning:'Thường gặp'},
+  {sound:'r (đầu)',ipa:'/ʁ/',hint:'rung cổ họng',word:'Rücken',meaning:'Lưng'},
+];
+let _emState={idx:0,flipped:false,known:0,total:EMERGENCY_CARDS.length};
+let _ssState={idx:0,answered:false,score:0,done:false};
+let _pgState={tab:'info',qIdx:0,score:0,done:false};
+
 // ════════════════════════════════════════════════════════
 // GAMIFICATION — XP, Levels, Badges, Streak
 // ════════════════════════════════════════════════════════
@@ -732,7 +871,7 @@ function navTo(pg){
   document.querySelectorAll('.bn-item[data-page]').forEach(i=>i.classList.remove('active'));
   const bi=document.querySelector('.bn-item[data-page="'+pg+'"]');
   if(bi) bi.classList.add('active');
-  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks','typing-speed'].includes(pg);
+  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks','typing-speed','abbr','emergency-fc','shift-sim','pflegegrad','pronunciation'].includes(pg);
   const bnCats=document.getElementById('bn-cats-btn');
   if(bnCats) bnCats.classList.toggle('active',isCatPage);
   // Category sheet active item
@@ -746,6 +885,11 @@ function navTo(pg){
   else if(pg==='learning-path')renderLearningPath();
   else if(pg==='body-diagram')renderBodyDiagram();
   else if(pg==='typing-speed')renderTypingSpeed();
+  else if(pg==='abbr')renderAbbr();
+  else if(pg==='emergency-fc')renderEmergency();
+  else if(pg==='shift-sim')renderShiftSim();
+  else if(pg==='pflegegrad')renderPflegegrad();
+  else if(pg==='pronunciation')renderPronunciation();
   else if(isCatPage)ensurePage(pg);
   if(pg==='dashboard')renderDashboard();
   if(pg==='dialogue')renderDialogues();
@@ -2057,6 +2201,261 @@ window.startTypingGame=function(){
 window.retryTyping=function(){startTypingGame();};
 
 // ════════════════════════════════════════════════════════
+// NEW FEATURES: Abbr, Emergency FC, Shift Sim, Pflegegrad, Pronunciation
+// ════════════════════════════════════════════════════════
+function renderAbbr(){
+  const el=document.getElementById('page-abbr');
+  if(!el)return;
+  let q='',cat='all';
+  function draw(){
+    const cats=['all',...new Set(ABBR_DATA.map(a=>a.cat))];
+    const filtered=ABBR_DATA.filter(a=>{
+      const matchCat=cat==='all'||a.cat===cat;
+      const matchQ=!q||a.abbr.toLowerCase().includes(q.toLowerCase())||a.full.toLowerCase().includes(q.toLowerCase())||a.vi.toLowerCase().includes(q.toLowerCase());
+      return matchCat&&matchQ;
+    });
+    const catColors={Vital:'var(--red)',Medikamente:'var(--blue)',Diagnose:'var(--orange)',Dokument:'var(--teal)',Pflege:'var(--purple)'};
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🏷️ Từ viết tắt y tế</div></div>
+<div style="padding:0 1rem 1rem">
+<input class="abbr-search" id="abbr-q" placeholder="Tìm kiếm: RR, Blutdruck, huyết áp..." value="${esc(q)}" oninput="window._abbrSearch(this.value)">
+<div class="abbr-chips">${cats.map(c=>`<button class="abbr-chip${cat===c?' active':''}" onclick="window._abbrCat('${esc(c)}')">${c==='all'?'Tất cả':c}</button>`).join('')}</div>
+<div class="abbr-grid">${filtered.map(a=>`<div class="abbr-card">
+  <span class="abbr-short" style="color:${catColors[a.cat]||'var(--blue)'}">${esc(a.abbr)}</span>
+  <div class="abbr-long">${esc(a.full)}</div>
+  <div class="abbr-vi">${esc(a.vi)}</div>
+  <div class="abbr-example">${esc(a.example)}</div>
+</div>`).join('')}${filtered.length===0?'<p style="color:var(--t3);grid-column:1/-1;text-align:center;padding:2rem">Không tìm thấy kết quả</p>':''}</div>
+</div>`;
+  }
+  window._abbrSearch=v=>{q=v;draw();document.getElementById('abbr-q')&&(document.getElementById('abbr-q').focus())};
+  window._abbrCat=v=>{cat=v;draw()};
+  draw();
+}
+
+function renderEmergency(){
+  const el=document.getElementById('page-emergency-fc');
+  if(!el)return;
+  _emState={idx:0,flipped:false,known:0,total:EMERGENCY_CARDS.length};
+  function draw(){
+    if(_emState.idx>=EMERGENCY_CARDS.length){
+      el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🚨 Flashcard Khẩn Cấp</div></div>
+<div style="padding:1rem;text-align:center">
+<div class="em-complete" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:var(--rl);padding:2rem;margin:1rem 0">
+  <div style="font-size:2.5rem">🏆</div>
+  <h3 style="color:var(--red);margin:.5rem 0">Hoàn thành!</h3>
+  <p>Đã học <b>${_emState.known}</b>/${EMERGENCY_CARDS.length} thẻ</p>
+  <p style="color:var(--t2);font-size:.85rem">+20 XP được thêm vào tài khoản</p>
+  <button class="btn" style="margin-top:1rem;background:var(--red);color:#fff" onclick="renderEmergency()">Học lại 🔄</button>
+</div></div>`;
+      addXP(20,'Hoàn thành flashcard khẩn cấp');
+      progressMission('flash5');
+      return;
+    }
+    const card=EMERGENCY_CARDS[_emState.idx];
+    const pct=Math.round((_emState.idx/EMERGENCY_CARDS.length)*100);
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🚨 Flashcard Khẩn Cấp</div></div>
+<div style="padding:0 1rem 1rem">
+<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
+  <div style="flex:1;height:5px;background:var(--b1);border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--red);transition:.3s"></div></div>
+  <span style="font-size:.75rem;color:var(--t3)">${_emState.idx+1}/${EMERGENCY_CARDS.length}</span>
+</div>
+<div class="em-card${_emState.flipped?' flipped':''}" onclick="window._emFlip()">
+  <div class="em-front">
+    <div class="em-de">${esc(card.de)}</div>
+    <button class="em-speak" onclick="event.stopPropagation();speakDE('${esc(card.de)}')" title="Nghe">🔊</button>
+    <div class="em-tap-hint">Nhấn để xem nghĩa</div>
+  </div>
+  <div class="em-back">
+    <div class="em-vi">${esc(card.vi)}</div>
+    <div class="em-ctx">${esc(card.ctx)}</div>
+  </div>
+</div>
+${_emState.flipped?`<div style="display:flex;gap:.75rem;margin-top:1rem">
+  <button class="btn" style="flex:1;background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3)" onclick="window._emNext(false)">Cần ôn 🔄</button>
+  <button class="btn" style="flex:1;background:rgba(37,203,168,.1);color:var(--teal);border:1px solid rgba(37,203,168,.3)" onclick="window._emNext(true)">Đã biết ✓</button>
+</div>`:'<div style="text-align:center;color:var(--t3);font-size:.8rem;margin-top:.75rem">Nhấn vào thẻ để lật</div>'}
+</div>`;
+  }
+  window._emFlip=()=>{_emState.flipped=!_emState.flipped;draw();};
+  window._emNext=(known)=>{if(known)_emState.known++;_emState.idx++;_emState.flipped=false;draw();};
+  draw();
+}
+
+function renderShiftSim(){
+  const el=document.getElementById('page-shift-sim');
+  if(!el)return;
+  _ssState={idx:0,answered:false,score:0,done:false};
+  function draw(){
+    if(_ssState.done){
+      const pct=Math.round((_ssState.score/SHIFT_SCENARIOS.length)*100);
+      const msg=pct>=80?'Xuất sắc! Bạn là điều dưỡng giỏi! 🏆':pct>=60?'Tốt! Tiếp tục cố gắng! 💪':'Cần ôn thêm kiến thức điều dưỡng! 📚';
+      el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🏥 Ca Làm Việc</div></div>
+<div style="padding:1rem;text-align:center">
+<div style="background:linear-gradient(135deg,rgba(37,203,168,.08),var(--s2));border:1px solid rgba(37,203,168,.25);border-radius:var(--rl);padding:2rem;margin:1rem 0">
+  <div style="font-size:2.5rem">🏥</div>
+  <h3 style="color:var(--teal);margin:.5rem 0">Ca trực hoàn thành!</h3>
+  <div style="font-size:2rem;font-weight:700;color:var(--tx)">${_ssState.score}/${SHIFT_SCENARIOS.length}</div>
+  <p style="color:var(--t2)">${msg}</p>
+  <p style="color:var(--t3);font-size:.8rem">+${_ssState.score*10} XP được thêm vào tài khoản</p>
+  <button class="btn btn-primary" style="margin-top:1rem" onclick="renderShiftSim()">Ca trực mới 🔄</button>
+</div></div>`;
+      progressMission('ex1');
+      return;
+    }
+    const sc=SHIFT_SCENARIOS[_ssState.idx];
+    const pct=Math.round((_ssState.idx/SHIFT_SCENARIOS.length)*100);
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🏥 Ca Làm Việc</div></div>
+<div style="padding:0 1rem 1rem">
+<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
+  <div style="flex:1;height:5px;background:var(--b1);border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--teal);transition:.3s"></div></div>
+  <span style="font-size:.75rem;color:var(--t3)">Ca ${_ssState.idx+1}/${SHIFT_SCENARIOS.length}</span>
+</div>
+<div class="ss-patient">
+  <div class="ss-patient-info">
+    <span class="ss-room">${esc(sc.room)}</span>
+    <span class="ss-name">${esc(sc.name)}, ${sc.age} Jahre</span>
+    <span class="ss-diag">${esc(sc.diag)}</span>
+  </div>
+  <div class="ss-situation"><b>${esc(sc.situation)}</b></div>
+  <div class="ss-situation-vi">${esc(sc.situationVI)}</div>
+</div>
+<div class="ss-opts" id="ss-opts">${sc.options.map((o,i)=>`<button class="ss-opt" onclick="window._ssAnswer(${i})">${esc(o.text)}</button>`).join('')}</div>
+<div id="ss-explain" style="display:none"></div>
+<div id="ss-next-btn" style="display:none;margin-top:.75rem"><button class="btn btn-primary" onclick="window._ssNext()">${_ssState.idx+1<SHIFT_SCENARIOS.length?'Bệnh nhân tiếp theo →':'Kết thúc ca trực 🏁'}</button></div>
+</div>`;
+  }
+  window._ssAnswer=(i)=>{
+    if(_ssState.answered)return;
+    _ssState.answered=true;
+    const sc=SHIFT_SCENARIOS[_ssState.idx];
+    const opts=document.querySelectorAll('.ss-opt');
+    opts.forEach((b,j)=>{
+      b.disabled=true;
+      if(sc.options[j].correct)b.classList.add('correct');
+      else if(j===i&&!sc.options[j].correct)b.classList.add('wrong');
+    });
+    const ex=document.getElementById('ss-explain');
+    const chosen=sc.options[i];
+    if(ex){ex.style.display='block';ex.innerHTML=`<div class="ss-explain-box ${chosen.correct?'correct':'wrong'}"><b>${chosen.correct?'✅ Richtig!':'❌ Falsch!'}</b> ${esc(chosen.explain)}</div>`;}
+    if(chosen.correct){_ssState.score++;addXP(10,'Ca làm việc: câu đúng');}
+    const nb=document.getElementById('ss-next-btn');
+    if(nb)nb.style.display='block';
+  };
+  window._ssNext=()=>{_ssState.idx++;_ssState.answered=false;if(_ssState.idx>=SHIFT_SCENARIOS.length)_ssState.done=true;draw();};
+  draw();
+}
+
+function renderPflegegrad(){
+  const el=document.getElementById('page-pflegegrad');
+  if(!el)return;
+  if(!_pgState||_pgState.tab===undefined)_pgState={tab:'info',qIdx:0,score:0,done:false};
+  function draw(){
+    const isInfo=_pgState.tab==='info';
+    let content='';
+    if(isInfo){
+      content=`<div class="pg-ref-grid">${PG_DATA.map(pg=>`<div class="pg-card" style="border-left:4px solid ${pg.color}">
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+    <span class="pg-grade" style="background:${pg.color};color:#fff">PG ${pg.grade}</span>
+    <span style="font-size:.75rem;color:var(--t3)">${esc(pg.score)} Punkte</span>
+  </div>
+  <div style="font-size:.82rem;color:var(--tx);font-weight:600;margin-bottom:3px">${esc(pg.desc)}</div>
+  <div style="font-size:.78rem;color:var(--t2);margin-bottom:.5rem">${esc(pg.vi)}</div>
+  <div style="font-size:.76rem;color:var(--t3)">💶 Pflegegeld: <b>${esc(pg.geld)}</b> | Sachleistung: <b>${esc(pg.sach)}</b></div>
+  <div style="font-size:.76rem;color:var(--t3);margin-top:3px">📋 ${esc(pg.example)}</div>
+</div>`).join('')}</div>
+<div style="margin-top:1.2rem">
+<h4 style="color:var(--t2);font-size:.82rem;margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.05em">6 Module des NBA</h4>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px">
+${[
+  {n:1,t:'Mobilität',vi:'Di chuyển',w:'10%'},
+  {n:2,t:'Kognition & Kommunikation',vi:'Nhận thức & Giao tiếp',w:'15%'},
+  {n:3,t:'Verhaltensweisen',vi:'Hành vi & Tâm lý',w:'15%'},
+  {n:4,t:'Selbstversorgung',vi:'Tự chăm sóc',w:'40%'},
+  {n:5,t:'Therapie & Krankheit',vi:'Điều trị & Bệnh tật',w:'20%'},
+  {n:6,t:'Alltagsleben & Soziales',vi:'Cuộc sống hàng ngày',w:'– (ergänzend)'},
+].map(m=>`<div style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:.6rem .8rem">
+  <span style="font-size:.72rem;font-weight:700;color:var(--purple)">Modul ${m.n}</span>
+  <div style="font-size:.8rem;color:var(--tx)">${m.t}</div>
+  <div style="font-size:.73rem;color:var(--t3)">${m.vi} · ${m.w}</div>
+</div>`).join('')}
+</div></div>`;
+    } else if(_pgState.done){
+      const pass=_pgState.score>=6;
+      content=`<div style="text-align:center;padding:1rem">
+<div style="font-size:2.5rem">${pass?'🏆':'📚'}</div>
+<h3 style="color:${pass?'var(--teal)':'var(--orange)'}">${pass?'Xuất sắc!':'Cần ôn thêm!'}</h3>
+<p>${_pgState.score}/8 câu đúng ${pass?'– Bạn hiểu rõ hệ thống Pflegegrad!':'– Hãy đọc lại phần Tham khảo'}</p>
+${pass?'<p style="color:var(--t3);font-size:.8rem">+15 XP được thêm vào</p>':''}
+<button class="btn" style="margin-top:1rem" onclick="window._pgRestart()">Làm lại Quiz</button>
+</div>`;
+      if(pass)addXP(15,'Pflegegrad quiz hoàn thành');
+    } else {
+      const q=PG_QUIZ[_pgState.qIdx];
+      content=`<div style="font-size:.75rem;color:var(--t3);margin-bottom:.75rem">Câu ${_pgState.qIdx+1}/${PG_QUIZ.length} · ${_pgState.score} đúng</div>
+<div class="pg-question">${esc(q.q)}</div>
+<div style="display:flex;flex-direction:column;gap:8px;margin-top:.75rem" id="pg-opts">
+${q.opts.map((o,i)=>`<button class="ss-opt" onclick="window._pgAnswer(${i})">${esc(o)}</button>`).join('')}
+</div>
+<div id="pg-explain" style="display:none"></div>
+<div id="pg-next" style="display:none;margin-top:.75rem"><button class="btn btn-primary" onclick="window._pgNext()">${_pgState.qIdx+1<PG_QUIZ.length?'Câu tiếp →':'Xem kết quả'}</button></div>`;
+    }
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">📋 Pflegegrad</div></div>
+<div style="padding:0 1rem 1rem">
+<div style="display:flex;gap:4px;background:var(--s2);border-radius:var(--r);padding:3px;width:fit-content;margin-bottom:1rem">
+  <button class="pg-tab${isInfo?' active':''}" onclick="window._pgTab('info')">📋 Tham khảo</button>
+  <button class="pg-tab${!isInfo?' active':''}" onclick="window._pgTab('quiz')">🎯 Kiểm tra</button>
+</div>
+${content}
+</div>`;
+  }
+  window._pgTab=(t)=>{_pgState.tab=t;if(t==='quiz')_pgState={tab:'quiz',qIdx:0,score:0,done:false};draw();};
+  window._pgAnswer=(i)=>{
+    const q=PG_QUIZ[_pgState.qIdx];
+    const opts=document.querySelectorAll('#pg-opts .ss-opt');
+    opts.forEach((b,j)=>{b.disabled=true;if(j===q.correct)b.classList.add('correct');else if(j===i&&i!==q.correct)b.classList.add('wrong');});
+    if(i===q.correct)_pgState.score++;
+    const ex=document.getElementById('pg-explain');
+    if(ex){ex.style.display='block';ex.innerHTML=`<div class="ss-explain-box ${i===q.correct?'correct':'wrong'}" style="margin-top:.5rem"><b>${i===q.correct?'✅ Richtig!':'❌ Falsch!'}</b> ${esc(q.exp)}</div>`;}
+    const nb=document.getElementById('pg-next');if(nb)nb.style.display='block';
+  };
+  window._pgNext=()=>{_pgState.qIdx++;if(_pgState.qIdx>=PG_QUIZ.length)_pgState.done=true;draw();};
+  window._pgRestart=()=>{_pgState={tab:'quiz',qIdx:0,score:0,done:false};draw();};
+  draw();
+}
+
+function renderPronunciation(){
+  const el=document.getElementById('page-pronunciation');
+  if(!el)return;
+  let openIdx=-1;
+  function draw(){
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🗣️ Phát âm tiếng Đức</div></div>
+<div style="padding:0 1rem 1rem">
+<p style="color:var(--t2);font-size:.82rem;margin-bottom:1rem">Nhấn vào thẻ để nghe ví dụ và xem hướng dẫn phát âm</p>
+<div class="pron-grid">${PRONUNCIATION_GUIDE.map((p,i)=>`<div class="pron-card${openIdx===i?' open':''}" onclick="window._pronToggle(${i})">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <span class="pron-sound">${esc(p.sound)}</span>
+      <span class="pron-ipa" style="margin-left:.4rem">${esc(p.ipa)}</span>
+    </div>
+    <span style="color:var(--t3);font-size:.7rem">${openIdx===i?'▲':'▼'}</span>
+  </div>
+  <div class="pron-vi">${esc(p.hint)}</div>
+  ${openIdx===i?`<div class="pron-details">
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
+      <span style="font-size:1.1rem;font-weight:600;color:var(--tx)">${esc(p.word)}</span>
+      <button class="pron-listen" onclick="event.stopPropagation();speakDE('${esc(p.word)}')" title="Nghe">🔊</button>
+      <span style="font-size:.78rem;color:var(--t3)">${esc(p.meaning)}</span>
+    </div>
+  </div>`:''}
+</div>`).join('')}
+</div>
+</div>`;
+  }
+  window._pronToggle=(i)=>{openIdx=openIdx===i?-1:i;draw();};
+  draw();
+}
+
+// ════════════════════════════════════════════════════════
 function renderDashboard(){
   if(!document.getElementById('dash-xp-card')) return;
   const lv=getLevel(GS.xp),nx=getNextLevel(GS.xp);
@@ -2108,6 +2507,11 @@ function renderDashboard(){
     {icon:'⭐',title:'Yêu thích',   sub:'Từ đã đánh dấu',      page:'bookmarks'},
     {icon:'🤖',title:'Roleplay AI', sub:'Luyện hội thoại',     page:'roleplay'},
     {icon:'⌨️',title:'Tốc độ gõ',  sub:'Test typing speed',   page:'typing-speed'},
+    {icon:'📖',title:'Từ viết tắt',sub:'30 ký hiệu y tế',page:'abbr'},
+    {icon:'🚨',title:'Khẩn cấp FC',sub:'20 thẻ cấp cứu',page:'emergency-fc'},
+    {icon:'🏥',title:'Ca làm việc',sub:'5 tình huống thực tế',page:'shift-sim'},
+    {icon:'🏅',title:'Pflegegrad',sub:'PG1–5 + Quiz',page:'pflegegrad'},
+    {icon:'🗣️',title:'Phát âm',sub:'15 âm tiếng Đức',page:'pronunciation'},
   ];
   let featGridSec=document.getElementById('dash-feat-grid-sec');
   if(!featGridSec){
