@@ -504,6 +504,9 @@ function updateXPUI(){
   document.getElementById('sb-streak-txt').textContent=GS.streak+' ngày liên tiếp';
   document.getElementById('tb-xp').textContent=`⭐ ${GS.xp} XP`;
   document.getElementById('s-mastered').textContent=GS.mastered;
+  // Update CEFR badge in topbar
+  const cefrBadge=document.getElementById('tb-cefr');
+  if(cefrBadge){const c=getCEFR(GS.xp);cefrBadge.textContent=c.level;cefrBadge.style.background=c.color+'20';cefrBadge.style.color=c.color;cefrBadge.style.borderColor=c.color+'40';}
 }
 function showLevelUp(lv){
   const t=document.getElementById('lvlToast');
@@ -729,7 +732,7 @@ function navTo(pg){
   document.querySelectorAll('.bn-item[data-page]').forEach(i=>i.classList.remove('active'));
   const bi=document.querySelector('.bn-item[data-page="'+pg+'"]');
   if(bi) bi.classList.add('active');
-  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks'].includes(pg);
+  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks','typing-speed'].includes(pg);
   const bnCats=document.getElementById('bn-cats-btn');
   if(bnCats) bnCats.classList.toggle('active',isCatPage);
   // Category sheet active item
@@ -742,6 +745,7 @@ function navTo(pg){
   if(pg==='bookmarks')renderBookmarksPage();
   else if(pg==='learning-path')renderLearningPath();
   else if(pg==='body-diagram')renderBodyDiagram();
+  else if(pg==='typing-speed')renderTypingSpeed();
   else if(isCatPage)ensurePage(pg);
   if(pg==='dashboard')renderDashboard();
   if(pg==='dialogue')renderDialogues();
@@ -1044,6 +1048,7 @@ function rateFC(cat,q){
   const s=flashState[cat],p=s.items[s.idx];
   reviewSRS(p,q);
   GS.flashDone++;
+  progressMission('flash5');
   updateXPUI();
   navFC(cat,1);
 }
@@ -1364,6 +1369,7 @@ function rateSRS(q){
   srsQ.done++;
   if(q>=3) srsQ.ok++;
   srsQ.xpEarned+=(q>=4?10:q>=3?5:2);
+  progressMission('srs10');
   updateXPUI();
   // Hard card: push a copy to end of queue so it repeats this session
   if(q===0) srsQ.queue.push({...srsQ.card});
@@ -1623,6 +1629,7 @@ function showRoundDone(){
   const m=pct>=90?'🏆':pct>=70?'🥈':pct>=50?'🥉':'💪';
   if(pct===100){GS.exPerfectRound++;checkBadges();}
   GS.exDone+=EX_ROUND;checkBadges();
+  progressMission('ex1');
   document.getElementById('exContent').innerHTML=`
     <div style="text-align:center;padding:2rem 1rem;">
       <div style="font-size:3rem;margin-bottom:.5rem;">${m}</div>
@@ -1873,7 +1880,6 @@ function claimMission(id){
   s.claimed.push(id);
   _saveMissions(s);
   addXP(m.xp,'Nhiệm vụ: '+m.label);
-  addTodayXP(m.xp);
   const mc=document.getElementById('dash-missions-card');
   if(mc) mc.innerHTML=_renderMissionsCardInner();
 }
@@ -1959,7 +1965,7 @@ function answerChallenge(vi){
   s.correct=vi===word.vi;
   s.chosen=vi;
   _saveDailyChallenge(s);
-  if(s.correct){addXP(20,'Thử thách hôm nay');addTodayXP(20);}
+  if(s.correct){addXP(20,'Thử thách hôm nay');}
   const cc=document.getElementById('dash-challenge-inner');
   if(cc) cc.innerHTML=_renderChallengeCard();
 }
@@ -2056,9 +2062,34 @@ function renderDashboard(){
   const lv=getLevel(GS.xp),nx=getNextLevel(GS.xp);
   const base=lv.min,top=nx?nx.min:GS.xp+1;
   const pct=Math.round((GS.xp-base)/(top-base)*100);
-  // XP Card
+
+  // ── Greeting Card (Feature 1 + Feature 3 + Feature 6) ─
+  const cefr=getCEFR(GS.xp);
+  const todayXP=getTodayXP();
+  const dailyGoal=50;
+  const dailyPct=Math.min(Math.round(todayXP/dailyGoal*100),100);
+  const userName=(window._currentUser?.user_metadata?.name||window._currentUser?.email||'').split(' ').pop()||'bạn';
   document.getElementById('dash-xp-card').innerHTML=`
-    <div class="xp-card">
+    <div class="greeting-card">
+      <div class="greeting-top">
+        <div style="flex:1">
+          <div class="greeting-text">${getGreeting()}, <strong>${sanitize(userName)}</strong>!</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">
+            <span class="cefr-badge" style="background:${cefr.color}20;color:${cefr.color};border:1px solid ${cefr.color}40">${cefr.level}</span>
+            <span style="font-size:.78rem;color:var(--t2)">🔥 ${GS.streak} ngày liên tiếp</span>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:.72rem;color:var(--t3);margin-bottom:3px">Hôm nay</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--yellow)">${todayXP} / ${dailyGoal} XP</div>
+        </div>
+      </div>
+      <div class="daily-goal-bar" style="margin-top:10px">
+        <div class="daily-goal-fill" style="width:${dailyPct}%"></div>
+      </div>
+      <div style="font-size:.68rem;color:var(--t3);margin-top:4px">${dailyPct<100?`${dailyGoal-todayXP} XP nữa để đạt mục tiêu`:'🎉 Đã đạt mục tiêu hôm nay!'}</div>
+    </div>
+    <div class="xp-card" style="margin-top:10px">
       <div class="xp-card-top">
         <div><div class="xp-level">${lv.emoji} ${lv.name}</div><div class="xp-level-lbl">Cấp độ hiện tại</div></div>
         <div class="xp-total">${GS.xp} XP${nx?' / '+nx.min+' XP':''}</div>
@@ -2066,6 +2097,31 @@ function renderDashboard(){
       <div class="xp-bar-wrap"><div class="xp-bar-inner" style="width:${pct}%"></div></div>
       <div class="xp-bar-labels"><span>${lv.name}</span>${nx?'<span>'+nx.emoji+' '+nx.name+'</span>':''}</div>
     </div>`;
+
+  // ── Feature Grid (Feature 4) ────────────────────────────
+  const FEAT_GRID=[
+    {icon:'🔁',title:'Ôn SRS',      sub:'Ôn tập thông minh', page:'srs'},
+    {icon:'✏️',title:'Bài tập',     sub:'Luyện tập kỹ năng',  page:'exercise'},
+    {icon:'💬',title:'Hội thoại',   sub:'Mẫu câu thực tế',    page:'dialogue'},
+    {icon:'🏥',title:'Sơ đồ cơ thể',sub:'Từ vựng y tế',       page:'body-diagram'},
+    {icon:'🗺️',title:'Lộ trình',   sub:'Ưu tiên học tập',     page:'learning-path'},
+    {icon:'⭐',title:'Yêu thích',   sub:'Từ đã đánh dấu',      page:'bookmarks'},
+    {icon:'🤖',title:'Roleplay AI', sub:'Luyện hội thoại',     page:'roleplay'},
+    {icon:'⌨️',title:'Tốc độ gõ',  sub:'Test typing speed',   page:'typing-speed'},
+  ];
+  let featGridSec=document.getElementById('dash-feat-grid-sec');
+  if(!featGridSec){
+    featGridSec=document.createElement('div');
+    featGridSec.id='dash-feat-grid-sec';
+    const xpCard=document.getElementById('dash-xp-card');
+    xpCard.after(featGridSec);
+  }
+  featGridSec.innerHTML=`<div class="feat-grid">${FEAT_GRID.map(f=>`
+    <div class="feat-card" onclick="navTo('${f.page}')">
+      <div class="feat-ic">${f.icon}</div>
+      <div class="feat-title">${f.title}</div>
+      <div class="feat-sub">${f.sub}</div>
+    </div>`).join('')}</div>`;
   // Streak
   document.getElementById('dash-streak-card').innerHTML=`
     <div class="streak-card">
@@ -2183,6 +2239,51 @@ function renderDashboard(){
         <button class="ib pri" onclick="generateCertificate()">🎓 Tải chứng chỉ</button>
       </div>`;
   }
+
+  // ── Daily Missions (Feature 2) ─────────────────────────
+  let missionsSec=document.getElementById('dash-missions-sec');
+  if(!missionsSec){
+    missionsSec=document.createElement('div');
+    missionsSec.id='dash-missions-sec';
+    missionsSec.className='prog-section';
+    const sug=document.querySelector('.sug-section');
+    if(sug) sug.parentNode.insertBefore(missionsSec,sug);
+    else document.getElementById('page-dashboard').appendChild(missionsSec);
+  }
+  missionsSec.innerHTML=`<div class="prog-title">🎯 Nhiệm vụ hôm nay</div>
+    <div id="dash-missions-card">${_renderMissionsCardInner()}</div>`;
+
+  // ── Daily Challenge (Feature 5) ────────────────────────
+  let challengeSec=document.getElementById('dash-challenge-sec');
+  if(!challengeSec){
+    challengeSec=document.createElement('div');
+    challengeSec.id='dash-challenge-sec';
+    challengeSec.className='prog-section';
+    missionsSec.after(challengeSec);
+  }
+  challengeSec.innerHTML=`<div class="prog-title">🎯 Thử thách hôm nay</div>
+    <div class="challenge-card" id="dash-challenge-inner">${_renderChallengeCard()}</div>`;
+
+  // ── Community (Feature 8) ──────────────────────────────
+  let commSec=document.getElementById('dash-comm-sec');
+  if(!commSec){
+    commSec=document.createElement('div');
+    commSec.id='dash-comm-sec';
+    document.getElementById('page-dashboard').appendChild(commSec);
+  }
+  commSec.innerHTML=`<div class="comm-section">
+    <div class="comm-title">CỘNG ĐỒNG</div>
+    <div class="comm-cards">
+      <a class="comm-card" href="#" style="--cc:var(--blue)" onclick="event.preventDefault();toast('Link Zalo sẽ sớm có!')">
+        <span class="comm-ic">💬</span>
+        <div><div class="comm-name">Zalo</div><div class="comm-sub">Nhóm học tiếng Đức Pflege</div></div>
+      </a>
+      <a class="comm-card" href="#" style="--cc:var(--blue)" onclick="event.preventDefault();toast('Link Facebook sẽ sớm có!')">
+        <span class="comm-ic">👥</span>
+        <div><div class="comm-name">Facebook</div><div class="comm-sub">Nhóm học tiếng Đức Pflege</div></div>
+      </a>
+    </div>
+  </div>`;
 }
 function jumpTo(cat, deWord){
   document.querySelectorAll('.nav-it').forEach(i=>i.classList.remove('active'));
@@ -2237,6 +2338,7 @@ function doSearch(q){
     dd.innerHTML='<div class="sr-empty">Không tìm thấy kết quả cho "<b>'+sanitize(q)+'</b>"</div>';
     dd.classList.add('open');return;
   }
+  progressMission('search3');
   dd.innerHTML=res.map((p,i)=>{
     const catMeta=CAT_META[p.cat]||{ic:'📚',l:p.cat};
     return `<div class="sr-it" data-idx="${i}" data-cat="${sanitize(p.cat)}" data-de="${p.de.replace(/"/g,'&quot;')}"
