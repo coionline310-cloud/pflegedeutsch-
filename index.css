@@ -1236,3 +1236,66 @@ kbd{background:var(--s4);border:1px solid var(--b2);border-radius:5px;padding:1p
 .comm-ic{font-size:1.4rem;flex-shrink:0;}
 .comm-name{font-size:.85rem;font-weight:600;color:var(--tx);margin-bottom:2px;}
 .comm-sub{font-size:.72rem;color:var(--t3);}
+
+/* ══ ABBR PAGE ═══════════════════════════════════════ */
+.abbr-search{width:100%;padding:.55rem .9rem;border:1px solid var(--b2);border-radius:var(--r);background:var(--s2);color:var(--tx);font-size:.85rem;margin-bottom:.75rem;box-sizing:border-box}
+.abbr-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.9rem}
+.abbr-chip{padding:4px 12px;border-radius:20px;border:1px solid var(--b2);background:var(--s2);color:var(--t2);font-size:.75rem;cursor:pointer;transition:var(--transition)}
+.abbr-chip.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.abbr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.abbr-card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:.75rem 1rem}
+.abbr-short{font-size:1.4rem;font-weight:800;display:block;margin-bottom:2px}
+.abbr-long{font-size:.8rem;color:var(--tx);margin-bottom:2px}
+.abbr-vi{font-size:.76rem;color:var(--t2);margin-bottom:4px}
+.abbr-example{font-size:.72rem;color:var(--t3);font-style:italic;border-top:1px solid var(--b1);padding-top:4px;margin-top:4px}
+
+/* ══ EMERGENCY FLASHCARD ════════════════════════════ */
+.em-card{background:var(--s2);border:2px solid rgba(239,68,68,.3);border-radius:var(--rl);min-height:200px;display:flex;flex-direction:column;justify-content:center;align-items:center;cursor:pointer;position:relative;transition:var(--transition);padding:1.5rem}
+.em-card:hover{border-color:rgba(239,68,68,.5);transform:translateY(-1px)}
+.em-front,.em-back{width:100%;text-align:center}
+.em-back{display:none}
+.em-card.flipped .em-front{display:none}
+.em-card.flipped .em-back{display:block}
+.em-de{font-size:2rem;font-weight:800;color:var(--red);margin-bottom:.5rem}
+.em-speak{background:none;border:none;font-size:1.3rem;cursor:pointer;padding:.2rem .5rem;border-radius:var(--r);transition:var(--transition)}
+.em-speak:hover{background:rgba(239,68,68,.1)}
+.em-tap-hint{font-size:.75rem;color:var(--t3);margin-top:.75rem}
+.em-vi{font-size:1.5rem;font-weight:700;color:var(--tx);margin-bottom:.5rem}
+.em-ctx{font-size:.82rem;color:var(--t2);line-height:1.5}
+
+/* ══ SHIFT SIM ═══════════════════════════════════════ */
+.ss-patient{background:linear-gradient(135deg,rgba(37,203,168,.07),var(--s2));border:1px solid rgba(37,203,168,.25);border-radius:var(--rl);padding:1rem;margin-bottom:1rem}
+.ss-patient-info{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem}
+.ss-room{background:var(--teal);color:#fff;padding:2px 10px;border-radius:20px;font-size:.75rem;font-weight:600}
+.ss-name{font-weight:600;font-size:.85rem}
+.ss-diag{font-size:.78rem;color:var(--t2)}
+.ss-situation{font-size:.9rem;color:var(--tx);margin-bottom:.3rem}
+.ss-situation-vi{font-size:.8rem;color:var(--t2);font-style:italic}
+.ss-opt{display:block;width:100%;padding:.65rem 1rem;margin-bottom:8px;text-align:left;border:1px solid var(--b2);background:var(--s2);border-radius:var(--r);color:var(--tx);font-size:.85rem;cursor:pointer;transition:var(--transition)}
+.ss-opt:hover:not(:disabled){border-color:var(--teal);background:rgba(37,203,168,.05)}
+.ss-opt.correct{border-color:var(--teal)!important;background:rgba(37,203,168,.1)!important;color:var(--teal)}
+.ss-opt.wrong{border-color:var(--red)!important;background:rgba(239,68,68,.07)!important;color:var(--red)}
+.ss-opt:disabled{cursor:default}
+.ss-explain-box{padding:.65rem 1rem;border-radius:var(--r);font-size:.82rem;line-height:1.5}
+.ss-explain-box.correct{background:rgba(37,203,168,.08);border:1px solid rgba(37,203,168,.3);color:var(--tx)}
+.ss-explain-box.wrong{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);color:var(--tx)}
+
+/* ══ PFLEGEGRAD ═══════════════════════════════════════ */
+.pg-ref-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.pg-card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:1rem}
+.pg-grade{padding:3px 12px;border-radius:20px;font-size:.82rem;font-weight:700}
+.pg-tab{padding:6px 18px;border-radius:calc(var(--r) - 2px);border:none;background:transparent;color:var(--t2);font-size:.8rem;cursor:pointer;transition:var(--transition)}
+.pg-tab.active{background:var(--s4);color:var(--tx)}
+.pg-question{font-size:.92rem;color:var(--tx);font-weight:600;padding:.9rem 1rem;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);line-height:1.5}
+
+/* ══ PRONUNCIATION ════════════════════════════════════ */
+.pron-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.pron-card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:.9rem 1rem;cursor:pointer;transition:var(--transition)}
+.pron-card:hover{border-color:var(--b2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.pron-card.open{border-color:rgba(79,163,255,.4);background:var(--s3)}
+.pron-sound{font-size:1.6rem;font-weight:800;color:var(--blue)}
+.pron-ipa{font-size:.82rem;color:var(--t2)}
+.pron-vi{font-size:.75rem;color:var(--t3);margin-top:3px}
+.pron-details{margin-top:.65rem;padding-top:.65rem;border-top:1px solid var(--b1)}
+.pron-listen{background:none;border:none;font-size:1.1rem;cursor:pointer;padding:2px 6px;border-radius:var(--r);transition:var(--transition)}
+.pron-listen:hover{background:rgba(79,163,255,.1)}
