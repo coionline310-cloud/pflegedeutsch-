@@ -429,6 +429,145 @@ let DIALOGUES=[
   ]},
 ];
 
+const ABBR_DATA=[
+  {abbr:'RR',full:'Blutdruck',vi:'Huyết áp',example:'RR 120/80 mmHg – normal',cat:'Vital'},
+  {abbr:'HF',full:'Herzfrequenz',vi:'Nhịp tim',example:'HF 72/min – normal',cat:'Vital'},
+  {abbr:'AF',full:'Atemfrequenz',vi:'Nhịp thở',example:'AF 16/min – normal',cat:'Vital'},
+  {abbr:'T',full:'Temperatur',vi:'Nhiệt độ',example:'T 38,5°C – subfebril',cat:'Vital'},
+  {abbr:'SpO₂',full:'Sauerstoffsättigung',vi:'Độ bão hòa oxy',example:'SpO₂ 96%',cat:'Vital'},
+  {abbr:'BZ',full:'Blutzucker',vi:'Đường huyết',example:'BZ 110 mg/dl nüchtern',cat:'Vital'},
+  {abbr:'GCS',full:'Glasgow Coma Scale',vi:'Thang điểm hôn mê',example:'GCS 15 – voll orientiert',cat:'Vital'},
+  {abbr:'VZ',full:'Vitalzeichen',vi:'Dấu hiệu sinh tồn',example:'VZ stündlich messen',cat:'Vital'},
+  {abbr:'i.v.',full:'intravenös',vi:'Tiêm tĩnh mạch',example:'Antibiose i.v. geben',cat:'Medikamente'},
+  {abbr:'s.c.',full:'subkutan',vi:'Tiêm dưới da',example:'Insulin s.c. injizieren',cat:'Medikamente'},
+  {abbr:'i.m.',full:'intramuskulär',vi:'Tiêm bắp',example:'Vitamin B12 i.m.',cat:'Medikamente'},
+  {abbr:'p.o.',full:'per os',vi:'Uống qua miệng',example:'Tablette p.o. nehmen',cat:'Medikamente'},
+  {abbr:'NW',full:'Nebenwirkung',vi:'Tác dụng phụ',example:'Mögliche NW: Übelkeit',cat:'Medikamente'},
+  {abbr:'KI',full:'Kontraindikation',vi:'Chống chỉ định',example:'KI bei Niereninsuffizienz',cat:'Medikamente'},
+  {abbr:'EKG',full:'Elektrokardiogramm',vi:'Điện tâm đồ',example:'12-Kanal-EKG schreiben',cat:'Diagnose'},
+  {abbr:'OP',full:'Operation',vi:'Phẫu thuật',example:'OP morgen früh 8 Uhr',cat:'Diagnose'},
+  {abbr:'DM',full:'Diabetes mellitus',vi:'Đái tháo đường',example:'DM Typ 2 seit 2010',cat:'Diagnose'},
+  {abbr:'HT',full:'Hypertonie',vi:'Tăng huyết áp',example:'HT medikamentös eingestellt',cat:'Diagnose'},
+  {abbr:'KHK',full:'Koronare Herzkrankheit',vi:'Bệnh mạch vành',example:'KHK, Z.n. Stent 2019',cat:'Diagnose'},
+  {abbr:'COPD',full:'Chron. obstruktive Lungenerkrankung',vi:'Bệnh phổi tắc nghẽn mạn tính',example:'COPD GOLD III',cat:'Diagnose'},
+  {abbr:'AZ',full:'Allgemeinzustand',vi:'Tình trạng toàn thân',example:'AZ reduziert',cat:'Dokument'},
+  {abbr:'EZ',full:'Ernährungszustand',vi:'Tình trạng dinh dưỡng',example:'EZ gut, BMI 22',cat:'Dokument'},
+  {abbr:'PA',full:'Pflegeanamnese',vi:'Tiền sử điều dưỡng',example:'PA bei Aufnahme erheben',cat:'Dokument'},
+  {abbr:'PE',full:'Pflegeplanung',vi:'Kế hoạch điều dưỡng',example:'PE täglich aktualisieren',cat:'Dokument'},
+  {abbr:'MDK',full:'Medizinischer Dienst',vi:'Dịch vụ y tế kiểm định',example:'MDK-Begutachtung am Dienstag',cat:'Pflege'},
+  {abbr:'PG',full:'Pflegegrad',vi:'Mức độ chăm sóc',example:'PG 3 anerkannt',cat:'Pflege'},
+  {abbr:'KH',full:'Krankenhaus',vi:'Bệnh viện',example:'Einweisung ins KH',cat:'Pflege'},
+  {abbr:'PDL',full:'Pflegedienstleitung',vi:'Trưởng phòng điều dưỡng',example:'PDL informieren',cat:'Pflege'},
+  {abbr:'SGB',full:'Sozialgesetzbuch',vi:'Bộ luật xã hội',example:'SGB XI Pflegeversicherung',cat:'Pflege'},
+  {abbr:'WV',full:'Wundversorgung',vi:'Chăm sóc vết thương',example:'WV täglich durchführen',cat:'Pflege'},
+];
+const EMERGENCY_CARDS=[
+  {de:'Notruf',vi:'Cuộc gọi khẩn cấp',ctx:'Einen Notruf absetzen – 112 anrufen'},
+  {de:'Sturz',vi:'Té ngã',ctx:'Der Patient ist gestürzt – nicht bewegen!'},
+  {de:'Bewusstlos',vi:'Bất tỉnh',ctx:'Patient bewusstlos – Notruf, Atemwege freihalten'},
+  {de:'Atemnot',vi:'Khó thở',ctx:'Patient hat Atemnot – aufsetzen, O₂ geben'},
+  {de:'Herzstillstand',vi:'Ngừng tim',ctx:'Herzstillstand – sofort Reanimation beginnen'},
+  {de:'Reanimation',vi:'Hồi sức CPR',ctx:'30 Kompressionen : 2 Beatmungen'},
+  {de:'Defibrillator',vi:'Máy sốc điện AED',ctx:'AED holen und einschalten'},
+  {de:'Starke Blutung',vi:'Chảy máu nhiều',ctx:'Wunde abdrücken, Arzt rufen'},
+  {de:'Krampfanfall',vi:'Co giật',ctx:'Sicherheit gewährleisten, Zeit stoppen, Arzt rufen'},
+  {de:'Anaphylaxie',vi:'Sốc phản vệ',ctx:'Adrenalin-Pen, Notruf, hinlegen'},
+  {de:'Hypoglykämie',vi:'Hạ đường huyết',ctx:'BZ < 70 mg/dl – Traubenzucker geben'},
+  {de:'Hypertensive Krise',vi:'Cơn tăng huyết áp',ctx:'RR > 180/110 – Arzt sofort informieren'},
+  {de:'Aspiration',vi:'Hít sặc dị vật',ctx:'Heimlich-Griff bei wachem Patient'},
+  {de:'Verwirrtheit akut',vi:'Lú lẫn cấp tính',ctx:'Delir – Orientierung geben, Sicherheit'},
+  {de:'Sturzsicherung',vi:'Phòng ngừa té ngã',ctx:'Bettgitter, Antirutschmatte, Rufanlage'},
+  {de:'Sofortmaßnahmen',vi:'Biện pháp khẩn cấp',ctx:'ABCDE-Schema anwenden'},
+  {de:'Notarzt',vi:'Bác sĩ cấp cứu',ctx:'Notarzt rufen – 112'},
+  {de:'Intensivstation',vi:'ICU – Hồi sức tích cực',ctx:'Verlegung auf die ITS'},
+  {de:'Erste Hilfe',vi:'Sơ cứu ban đầu',ctx:'Stabile Seitenlage bei Bewusstlosigkeit'},
+  {de:'Schockzeichen',vi:'Dấu hiệu sốc',ctx:'Blass, kalt, RR↓, HF↑ – Schocklagerung'},
+];
+const SHIFT_SCENARIOS=[
+  {room:'Zimmer 12',name:'Herr Müller',age:78,diag:'Herzinsuffizienz',
+   situation:'Der Patient klingelt und sagt: "Ich habe starke Schmerzen im Bauch, NRS 7."',
+   situationVI:'Bệnh nhân bấm chuông: "Tôi đau bụng rất dữ, mức độ 7/10"',
+   options:[
+     {text:'Den Arzt sofort informieren, Schmerzmittel erst nach Anordnung',correct:true,explain:'Richtig! Bei NRS 7 entscheidet der Arzt. Ohne Anordnung keine Medikamente.'},
+     {text:'Dem Patienten selbst eine Schmerztablette geben',correct:false,explain:'Falsch! Medikamente nur nach ärztlicher Anordnung geben.'},
+     {text:'"Das wird bald besser" sagen und weggehen',correct:false,explain:'Falsch! Starke Schmerzen müssen sofort behandelt werden.'},
+     {text:'Den Patienten bitten zu warten bis zur nächsten Visite',correct:false,explain:'Falsch! NRS 7 ist dringend – nicht warten!'},
+   ]},
+  {room:'Zimmer 5',name:'Frau Schmidt',age:84,diag:'Demenz, Pflegegrad 4',
+   situation:'Sie finden die Patientin auf dem Boden liegend neben dem Bett. Sie ist wach.',
+   situationVI:'Bạn thấy bệnh nhân nằm trên sàn cạnh giường. Bà vẫn còn tỉnh.',
+   options:[
+     {text:'Nicht bewegen, Notruf absetzen, Vitalzeichen prüfen, beruhigen',correct:true,explain:'Richtig! Bei Sturz erst prüfen, nie sofort bewegen – Fraktur möglich.'},
+     {text:'Patientin sofort aufheben und ins Bett legen',correct:false,explain:'Falsch! Vor dem Bewegen Verletzung ausschließen.'},
+     {text:'Warten bis ein Kollege kommt',correct:false,explain:'Falsch! Sofort versorgen und Hilfe rufen.'},
+     {text:'Patientin bitten selbst aufzustehen',correct:false,explain:'Falsch! Nach Sturz nicht ohne Unterstützung aufstehen lassen.'},
+   ]},
+  {room:'Zimmer 8',name:'Herr Braun',age:65,diag:'DM Typ 2, Hypertonie',
+   situation:'Der Patient verweigert seine Medikamente: "Ich nehme die Tabletten nicht!"',
+   situationVI:'Bệnh nhân từ chối uống thuốc: "Tôi không uống đâu!"',
+   options:[
+     {text:'Gründe erfragen, informieren, dokumentieren, Arzt informieren',correct:true,explain:'Richtig! Patientenautonomie respektieren, aber Dokumentation und Arzt sind Pflicht.'},
+     {text:'Medikamente heimlich ins Essen mischen',correct:false,explain:'Falsch! Das ist ein schwerer Rechtsverstoß.'},
+     {text:'Den Patienten zwingen',correct:false,explain:'Falsch! Zwang ist verboten.'},
+     {text:'Medikamente weglassen ohne Dokumentation',correct:false,explain:'Falsch! Immer dokumentieren und Arzt informieren.'},
+   ]},
+  {room:'Zimmer 3',name:'Frau Weber',age:91,diag:'Hypertonie, KHK',
+   situation:'RR 185/115, HF 92. Die Patientin klagt über Kopfschmerzen.',
+   situationVI:'Huyết áp 185/115, nhịp tim 92. Bệnh nhân than đau đầu.',
+   options:[
+     {text:'Sofort Arzt benachrichtigen, hinlegen lassen, Ruhe, erneut messen',correct:true,explain:'Richtig! RR > 180/110 mit Symptomen = hypertensive Krise. Arzt sofort!'},
+     {text:'Selbst ein Blutdruckmedikament geben',correct:false,explain:'Falsch! Medikamente nur nach ärztlicher Anordnung.'},
+     {text:'Abwarten und in einer Stunde messen',correct:false,explain:'Falsch! Hypertensive Krise ist ein Notfall.'},
+     {text:'Patientin aufstehen lassen',correct:false,explain:'Falsch! Bei hypertensiver Krise: Ruhe und hinlegen.'},
+   ]},
+  {room:'Zimmer 15',name:'Herr Fischer',age:72,diag:'Demenz, Pflegegrad 3',
+   situation:'Der Patient ist agitiert und möchte das Haus verlassen: "Ich muss nach Hause!"',
+   situationVI:'Bệnh nhân kích động muốn rời đi: "Tôi phải về nhà!"',
+   options:[
+     {text:'Ruhig ansprechen, validieren, ablenken, Sicherheit gewährleisten',correct:true,explain:'Richtig! Validation und Ablenkung – auf Emotion eingehen, nicht auf Inhalt.'},
+     {text:'Den Patienten laut anschreien',correct:false,explain:'Falsch! Schreien verstärkt die Agitation bei Demenz.'},
+     {text:'Zimmertür von außen abschließen',correct:false,explain:'Falsch! Freiheitsentzug ohne richterliche Genehmigung ist illegal.'},
+     {text:'Patienten ignorieren',correct:false,explain:'Falsch! Demenzpatienten brauchen Zuwendung.'},
+   ]},
+];
+const PG_DATA=[
+  {grade:1,score:'12,5–26,9',color:'var(--green)',desc:'Geringe Beeinträchtigung der Selbstständigkeit',vi:'Giảm nhẹ khả năng tự chăm sóc',geld:'–',sach:'Entlastungsbetrag 125€',example:'Kann gehen, braucht gelegentlich Hilfe'},
+  {grade:2,score:'27–47,4',color:'var(--blue)',desc:'Erhebliche Beeinträchtigung der Selbstständigkeit',vi:'Giảm đáng kể khả năng tự chăm sóc',geld:'332€',sach:'761€',example:'Hilfe beim Anziehen, Waschen nötig'},
+  {grade:3,score:'47,5–69,9',color:'var(--orange)',desc:'Schwere Beeinträchtigung der Selbstständigkeit',vi:'Giảm nặng khả năng tự chăm sóc',geld:'573€',sach:'1.432€',example:'Umfangreiche Hilfe bei Körperpflege'},
+  {grade:4,score:'70–89,9',color:'var(--red)',desc:'Schwerste Beeinträchtigung der Selbstständigkeit',vi:'Giảm rất nặng, gần như phụ thuộc hoàn toàn',geld:'765€',sach:'1.778€',example:'Fast vollständig pflegeabhängig'},
+  {grade:5,score:'90–100',color:'var(--purple)',desc:'Schwerste Beeinträchtigung + besondere Anforderungen',vi:'Nặng nhất, yêu cầu chăm sóc đặc biệt',geld:'947€',sach:'2.200€',example:'Beatmungspflichtig, intensivpflichtig'},
+];
+const PG_QUIZ=[
+  {q:'Welcher Pflegegrad bei 35 Punkten im NBA?',opts:['PG 1','PG 2','PG 3','PG 4'],correct:1,exp:'PG 2: 27–47,4 Punkte = erhebliche Beeinträchtigung'},
+  {q:'Patient kann nicht selbst essen, trinken oder Toilette benutzen. Wahrscheinlich?',opts:['PG 2','PG 3','PG 4','PG 5'],correct:2,exp:'PG 4: schwerste Beeinträchtigung, fast vollständig pflegeabhängig'},
+  {q:'Was misst das NBA (Neues Begutachtungsassessment)?',opts:['Pflegestunden pro Tag','Grad der Selbstständigkeit','Anzahl der Erkrankungen','Medikamentenbedarf'],correct:1,exp:'NBA misst den Grad der Selbstständigkeit in 6 Modulen'},
+  {q:'Welches Modul hat die höchste Gewichtung im NBA?',opts:['Modul 1 – Mobilität','Modul 3 – Verhaltensweisen','Modul 4 – Selbstversorgung','Modul 6 – Alltagsleben'],correct:2,exp:'Modul 4 (Selbstversorgung) hat 40% Gewichtung'},
+  {q:'Pflegegeld bei Pflegegrad 3?',opts:['332€/Monat','573€/Monat','765€/Monat','947€/Monat'],correct:1,exp:'PG 3: Pflegegeld 573€/Monat'},
+  {q:'Wer führt die Pflegegradbegutachtung durch?',opts:['Hausarzt','MDK / Medicproof','Krankenhaus','Sozialamt'],correct:1,exp:'MDK (bei gesetzl. KV) oder Medicproof (bei privater KV)'},
+  {q:'Bei welchem Pflegegrad gibt es keinen Anspruch auf Pflegegeld?',opts:['PG 1','PG 2','PG 3','PG 4'],correct:0,exp:'PG 1: nur Entlastungsbetrag 125€, kein Pflegegeld'},
+  {q:'Was bedeutet "Pflegesachleistung"?',opts:['Geld direkt an Pflegebedürftigen','Leistungen durch ambulanten Pflegedienst','Stationäre Heimunterbringung','Hilfsmittel wie Rollator'],correct:1,exp:'Pflegesachleistung = professioneller Pflegedienst erbringt Leistungen'},
+];
+const PRONUNCIATION_GUIDE=[
+  {sound:'ä',ipa:'/ɛ/',hint:"như 'e' trong 'xe'",word:'Zähne',meaning:'Răng'},
+  {sound:'ö',ipa:'/ø/',hint:"môi tròn, nói 'e'",word:'Körper',meaning:'Cơ thể'},
+  {sound:'ü',ipa:'/y/',hint:"môi tròn, nói 'i'",word:'Stühle',meaning:'Ghế'},
+  {sound:'ch (i/e)',ipa:'/ç/',hint:"như 'h' nhẹ ở cổ họng",word:'ich',meaning:'Tôi'},
+  {sound:'ch (a/o/u)',ipa:'/x/',hint:"như 'kh' tiếng Việt",word:'Bauch',meaning:'Bụng'},
+  {sound:'sch',ipa:'/ʃ/',hint:"như 'sh' tiếng Anh",word:'Schmerz',meaning:'Cơn đau'},
+  {sound:'st (đầu)',ipa:'/ʃt/',hint:"đọc là 'sht'",word:'Stethoskop',meaning:'Ống nghe'},
+  {sound:'sp (đầu)',ipa:'/ʃp/',hint:"đọc là 'shp'",word:'Sprache',meaning:'Ngôn ngữ'},
+  {sound:'w',ipa:'/v/',hint:"đọc như 'v' tiếng Việt",word:'Wunde',meaning:'Vết thương'},
+  {sound:'v',ipa:'/f/',hint:"đọc như 'f'",word:'Verband',meaning:'Băng bó'},
+  {sound:'z',ipa:'/ts/',hint:"đọc như 'ts'",word:'Zunge',meaning:'Lưỡi'},
+  {sound:'ei',ipa:'/aɪ/',hint:"đọc như 'ai'",word:'Bein',meaning:'Chân'},
+  {sound:'ie',ipa:'/iː/',hint:"đọc như 'i' dài",word:'Fieber',meaning:'Sốt'},
+  {sound:'eu/äu',ipa:'/ɔɪ/',hint:"đọc như 'oi'",word:'Häufig',meaning:'Thường gặp'},
+  {sound:'r (đầu)',ipa:'/ʁ/',hint:'rung cổ họng',word:'Rücken',meaning:'Lưng'},
+];
+let _emState={idx:0,flipped:false,known:0,total:EMERGENCY_CARDS.length};
+let _ssState={idx:0,answered:false,score:0,done:false};
+let _pgState={tab:'info',qIdx:0,score:0,done:false};
+
 // ════════════════════════════════════════════════════════
 // GAMIFICATION — XP, Levels, Badges, Streak
 // ════════════════════════════════════════════════════════
@@ -732,7 +871,7 @@ function navTo(pg){
   document.querySelectorAll('.bn-item[data-page]').forEach(i=>i.classList.remove('active'));
   const bi=document.querySelector('.bn-item[data-page="'+pg+'"]');
   if(bi) bi.classList.add('active');
-  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks','typing-speed'].includes(pg);
+  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks','typing-speed','abbr','emergency-fc','shift-sim','pflegegrad','pronunciation'].includes(pg);
   const bnCats=document.getElementById('bn-cats-btn');
   if(bnCats) bnCats.classList.toggle('active',isCatPage);
   // Category sheet active item
