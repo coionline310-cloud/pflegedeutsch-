@@ -871,7 +871,7 @@ function navTo(pg){
   document.querySelectorAll('.bn-item[data-page]').forEach(i=>i.classList.remove('active'));
   const bi=document.querySelector('.bn-item[data-page="'+pg+'"]');
   if(bi) bi.classList.add('active');
-  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks','typing-speed','abbr','emergency-fc','shift-sim','pflegegrad','pronunciation'].includes(pg);
+  const isCatPage=!['dashboard','exercise','dialogue','srs','roleplay','learning-path','body-diagram','bookmarks','typing-speed','abbr','emergency-fc','shift-sim','pflegegrad','pronunciation','voice-practice','forgetting','shift-adv'].includes(pg);
   const bnCats=document.getElementById('bn-cats-btn');
   if(bnCats) bnCats.classList.toggle('active',isCatPage);
   // Category sheet active item
@@ -890,6 +890,9 @@ function navTo(pg){
   else if(pg==='shift-sim')renderShiftSim();
   else if(pg==='pflegegrad')renderPflegegrad();
   else if(pg==='pronunciation')renderPronunciation();
+  else if(pg==='voice-practice')renderVoicePractice();
+  else if(pg==='forgetting')renderForgettingCurve();
+  else if(pg==='shift-adv')renderShiftAdv();
   else if(isCatPage)ensurePage(pg);
   if(pg==='dashboard')renderDashboard();
   if(pg==='dialogue')renderDialogues();
@@ -2512,6 +2515,396 @@ function renderPronunciation(){
 }
 
 // ════════════════════════════════════════════════════════
+// ADVANCED FEATURES: Voice Practice, Forgetting Curve, Branching Shift
+// ════════════════════════════════════════════════════════
+
+// ── Helpers ──────────────────────────────────────────────
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  const dp=Array.from({length:m+1},(_,i)=>Array.from({length:n+1},(_,j)=>i===0?j:j===0?i:0));
+  for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)
+    dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+  return dp[m][n];
+}
+function pronounceScore(target,heard){
+  const t=target.toLowerCase().trim(),h=heard.toLowerCase().trim();
+  if(t===h)return 100;
+  const maxLen=Math.max(t.length,h.length);
+  if(!maxLen)return 0;
+  return Math.max(0,Math.round((1-levenshtein(t,h)/maxLen)*100));
+}
+function calcRetention(interval,dueMs){
+  const lastReview=dueMs-interval*86400000;
+  const daysSince=(Date.now()-lastReview)/86400000;
+  const stability=Math.max(interval,1);
+  return Math.max(0,Math.round(Math.exp(-daysSince/stability)*100));
+}
+function renderCurveSVG(interval,dueMs){
+  const W=300,H=120,PAD=30;
+  const days=Math.max(interval*2,2);
+  const lastReview=dueMs-interval*86400000;
+  const currentDay=Math.min((Date.now()-lastReview)/86400000,days);
+  const pts=Array.from({length:50},(_,i)=>{
+    const d=(i/49)*days;
+    const r=Math.exp(-d/Math.max(interval,1));
+    const x=PAD+(d/days)*(W-PAD*2);
+    const y=PAD+(1-r)*(H-PAD*2);
+    return x+','+y;
+  }).join(' ');
+  const cx=PAD+(currentDay/days)*(W-PAD*2);
+  const cr=Math.exp(-currentDay/Math.max(interval,1));
+  const cy=PAD+(1-cr)*(H-PAD*2);
+  return `<svg width="${W}" height="${H}" style="width:100%;max-width:300px" viewBox="0 0 ${W} ${H}">
+<rect x="${PAD}" y="${PAD}" width="${W-PAD*2}" height="${(H-PAD*2)*0.3}" fill="rgba(34,197,94,.08)"/>
+<rect x="${PAD}" y="${PAD+(H-PAD*2)*0.3}" width="${W-PAD*2}" height="${(H-PAD*2)*0.3}" fill="rgba(234,179,8,.08)"/>
+<rect x="${PAD}" y="${PAD+(H-PAD*2)*0.6}" width="${W-PAD*2}" height="${(H-PAD*2)*0.4}" fill="rgba(239,68,68,.08)"/>
+<polyline points="${pts}" fill="none" stroke="#4fa3ff" stroke-width="2"/>
+<line x1="${cx}" y1="${PAD}" x2="${cx}" y2="${H-PAD}" stroke="#f97316" stroke-width="1.5" stroke-dasharray="3,3"/>
+<circle cx="${cx}" cy="${cy}" r="5" fill="#f97316" stroke="white" stroke-width="1.5"/>
+<text x="${PAD}" y="${H-5}" font-size="9" fill="#888">0d</text>
+<text x="${W-PAD-14}" y="${H-5}" font-size="9" fill="#888">${Math.round(days)}d</text>
+<text x="2" y="${PAD+5}" font-size="9" fill="#888">100%</text>
+<text x="2" y="${H-PAD+5}" font-size="9" fill="#888">0%</text>
+</svg>`;
+}
+
+// ── State vars ────────────────────────────────────────────
+let _vpState={idx:0,pool:[],sessionScores:[],recording:false,recognition:null};
+let _saState={sceneId:'intro',health:60,score:0,totalXP:0,history:[],done:false};
+
+// ── Branching Shift Data ──────────────────────────────────
+const SHIFT_ADV={
+  title:'Ca trực đêm — Khu Geriatrie',
+  scenes:{
+    intro:{id:'intro',title:'Bàn giao ca',
+      text:'Es ist 22:00 Uhr. Die Tagschicht übergibt Ihnen die Station. Schwester Maria berichtet: "Frau Hoffmann in Zimmer 4 ist heute Abend sehr unruhig. Herr Braun in Zimmer 7 hat heute kaum gegessen."',
+      textVI:'22:00 — Ca ngày bàn giao. Y tá Maria: "Bà Hoffmann phòng 4 rất bồn chồn. Ông Braun phòng 7 hầu như không ăn."',
+      patientStatus:null,
+      choices:[
+        {text:'Übergabe sorgfältig aufschreiben und nachfragen',textVI:'Ghi chép bàn giao cẩn thận và hỏi thêm',healthDelta:5,xp:10,feedback:'Sehr gut! Gründliche Übergabe verhindert Fehler.',feedbackVI:'Rất tốt! Bàn giao kỹ lưỡng ngăn ngừa sai sót.',nextId:'scene2'},
+        {text:'Übergabe kurz anhören und schnell anfangen',textVI:'Nghe bàn giao qua loa, bắt đầu ngay',healthDelta:-5,xp:0,feedback:'Nicht ideal. Wichtige Infos können verloren gehen.',feedbackVI:'Chưa tốt. Thông tin quan trọng có thể bị bỏ sót.',nextId:'scene2'},
+      ]},
+    scene2:{id:'scene2',title:'Frau Hoffmann — Zimmer 4',
+      text:'Sie gehen zu Frau Hoffmann (84J, Demenz PG4). Sie ist aufgestanden und läuft verwirrt umher: "Wo ist mein Mann? Ich muss nach Hause!"',
+      textVI:'Bà Hoffmann (84t, Dementia PG4) đứng dậy đi lơ ngơ: "Chồng tôi đâu? Tôi phải về nhà!"',
+      patientStatus:'Frau Hoffmann — agitiert',
+      choices:[
+        {text:'Ruhig ansprechen, validieren: "Sie möchten nach Hause, das verstehe ich." Sanft ablenken.',textVI:'Nói nhẹ nhàng, xác nhận: "Bà muốn về nhà, tôi hiểu." Đánh lạc hướng nhẹ nhàng.',healthDelta:10,xp:15,feedback:'Perfekt! Validation ist die beste Methode bei Demenz-Agitation.',feedbackVI:'Hoàn hảo! Xác nhận cảm xúc là phương pháp tốt nhất với kích động Dementia.',nextId:'scene3'},
+        {text:'Laut und bestimmt sagen: "Frau Hoffmann! Legen Sie sich sofort hin!"',textVI:'Nói to: "Bà Hoffmann! Nằm xuống ngay!"',healthDelta:-15,xp:0,feedback:'Falsch! Laute Ansprache verstärkt die Agitation erheblich.',feedbackVI:'Sai! Nói to sẽ làm bà kích động thêm nhiều.',nextId:'scene3_bad'},
+        {text:'Bettgitter hochstellen und Zimmer verlassen',textVI:'Kéo thanh chắn giường lên rồi rời phòng',healthDelta:-20,xp:0,feedback:'Sehr falsch! Freiheitsentzug ohne richterliche Genehmigung ist illegal.',feedbackVI:'Rất sai! Hạn chế tự do không có lệnh tòa án là vi phạm pháp luật.',nextId:'scene3_bad'},
+      ]},
+    scene3:{id:'scene3',title:'Vitalzeichen-Kontrolle',
+      text:'Bei Herrn Braun (72J, KHK, Hypertonie): RR 188/112 mmHg, HF 94/min. Er klagt über leichte Kopfschmerzen.',
+      textVI:'Ông Braun (72t, KHK, Tăng HA): HA 188/112, nhịp tim 94. Ông than đau đầu nhẹ.',
+      patientStatus:'Herr Braun — RR erhöht',
+      choices:[
+        {text:'Sofort Arzt anrufen, Patienten hinlegen lassen, erneut messen in 5 Min.',textVI:'Gọi bác sĩ ngay, cho bệnh nhân nằm, đo lại sau 5 phút.',healthDelta:10,xp:15,feedback:'Richtig! Hypertensive Krise erfordert sofortige ärztliche Beurteilung.',feedbackVI:'Đúng! Cơn tăng HA cần bác sĩ đánh giá ngay lập tức.',nextId:'scene4'},
+        {text:'Warten und in einer Stunde nochmal messen',textVI:'Chờ và đo lại sau 1 tiếng',healthDelta:-15,xp:0,feedback:'Falsch! RR 188/112 mit Symptomen = hypertensive Krise. Sofort Arzt!',feedbackVI:'Sai! HA 188/112 kèm triệu chứng = Cơn tăng HA. Gọi bác sĩ ngay!',nextId:'scene4'},
+        {text:'Selbst Nitro-Spray geben',textVI:'Tự lấy Nitro-Spray cho dùng',healthDelta:-10,xp:0,feedback:'Falsch! Medikamente nur nach ärztlicher Anordnung.',feedbackVI:'Sai! Thuốc chỉ dùng theo y lệnh bác sĩ.',nextId:'scene4'},
+      ]},
+    scene3_bad:{id:'scene3_bad',title:'Vitalzeichen-Kontrolle (schwieriger)',
+      text:'Frau Hoffmann weint jetzt. Zudem: Herr Braun hat RR 192/115 und klagt über stärkere Kopfschmerzen und Sehstörungen.',
+      textVI:'Bà Hoffmann giờ đang khóc. Thêm: Ông Braun HA 192/115, đau đầu nặng và mờ mắt.',
+      patientStatus:'⚠️ Tình huống phức tạp hơn!',
+      choices:[
+        {text:'Zuerst Notarzt für Herrn Braun, dann Kollegen zu Frau Hoffmann bitten',textVI:'Gọi bác sĩ cho Ông Braun trước, nhờ đồng nghiệp xử lý Bà Hoffmann',healthDelta:5,xp:10,feedback:'Gut priorisiert! Lebensbedrohliche Situation zuerst.',feedbackVI:'Ưu tiên tốt! Xử lý tình huống nguy hiểm tính mạng trước.',nextId:'scene4'},
+        {text:'Beide Situationen alleine bewältigen',textVI:'Tự xử lý cả hai tình huống một mình',healthDelta:-10,xp:0,feedback:'Riskant! In Notfällen immer Unterstützung holen.',feedbackVI:'Rủi ro! Trong cấp cứu, luôn phải kêu thêm người hỗ trợ.',nextId:'scene4'},
+      ]},
+    scene4:{id:'scene4',title:'Medikamentenverweigerung',
+      text:'Um Mitternacht verweigert Herr Fischer (68J) seine Schlaftabletten: "Die machen mich schläfrig bis Mittag! Ich nehme die nicht mehr!"',
+      textVI:'Nửa đêm, Ông Fischer (68t) từ chối thuốc ngủ: "Thuốc này làm tôi buồn ngủ đến trưa! Tôi không uống nữa!"',
+      patientStatus:'Herr Fischer — verweigert Medikamente',
+      choices:[
+        {text:'Gründe erfragen, informieren, dokumentieren, Arzt am Morgen informieren',textVI:'Hỏi lý do, giải thích, ghi hồ sơ, báo bác sĩ vào sáng',healthDelta:5,xp:15,feedback:'Korrekt! Patientenautonomie respektieren + Dokumentationspflicht.',feedbackVI:'Đúng! Tôn trọng quyền bệnh nhân + nghĩa vụ ghi chép.',nextId:'scene5'},
+        {text:'Medikamente heimlich in den Tee mischen',textVI:'Bí mật trộn thuốc vào trà',healthDelta:-20,xp:0,feedback:'Schwerer Rechtsverstoß! Körperverletzung und Straftat.',feedbackVI:'Vi phạm pháp luật nghiêm trọng! Phạm tội hình sự.',nextId:'scene5'},
+        {text:'Patienten überreden bis er nachgibt',textVI:'Kiên trì thuyết phục cho đến khi bệnh nhân chịu uống',healthDelta:-5,xp:0,feedback:'Nicht korrekt. Psychischer Druck verletzt die Patientenrechte.',feedbackVI:'Không đúng. Áp lực tâm lý vi phạm quyền bệnh nhân.',nextId:'scene5'},
+      ]},
+    scene5:{id:'scene5',title:'Sturz um 3:00 Uhr',
+      text:'Um 3:00 Uhr finden Sie Frau Weber (79J, PG3) auf dem Boden neben dem Bett. Sie ist wach, klagt über Schmerzen im rechten Hüftbereich.',
+      textVI:'3:00 sáng — Bà Weber (79t, PG3) nằm trên sàn. Bà tỉnh, than đau vùng hông phải.',
+      patientStatus:'🚨 Frau Weber — Sturz!',
+      choices:[
+        {text:'Nicht bewegen! Notruf intern, NRS, Vitalzeichen, beruhigen, dokumentieren',textVI:'Không di chuyển! Báo nội bộ, đánh giá đau, sinh hiệu, trấn an, ghi chép',healthDelta:15,xp:20,feedback:'Perfekt! SAMPLE-Schema beim Sturz. Fraktur muss ausgeschlossen werden.',feedbackVI:'Hoàn hảo! Quy trình đúng khi té ngã. Cần loại trừ gãy xương.',nextId:'end'},
+        {text:'Patientin vorsichtig aufheben und ins Bett legen',textVI:'Nhẹ nhàng đỡ bệnh nhân dậy lên giường',healthDelta:-25,xp:0,feedback:'Falsch! Bei Sturz mit Schmerzen nie sofort bewegen — Fraktur möglich!',feedbackVI:'Sai! Khi té ngã kèm đau, tuyệt đối không di chuyển — có thể gãy xương!',nextId:'end'},
+        {text:'Auf Kollegen warten, in der Zwischenzeit nichts tun',textVI:'Chờ đồng nghiệp, không làm gì',healthDelta:-10,xp:0,feedback:'Nicht akzeptabel. Sofortmaßnahmen sind immer notwendig.',feedbackVI:'Không chấp nhận được. Luôn phải thực hiện biện pháp ngay.',nextId:'end'},
+      ]},
+    end:{id:'end',type:'end',title:'Kết thúc ca trực',
+      text:'Es ist 6:00 Uhr. Die Frühschicht kommt. Sie übergeben die Station.',
+      textVI:'6:00 sáng. Ca sáng bắt đầu. Bạn bàn giao lại.',
+    },
+  }
+};
+
+function renderVoicePractice(){
+  const el=document.getElementById('page-voice-practice');
+  if(!el)return;
+  _vpState={idx:0,pool:shuffle(flatAll()),sessionScores:[],recording:false,recognition:null};
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🎙️ Luyện phát âm</div></div>
+<div style="padding:2rem 1rem;text-align:center">
+  <div style="font-size:3rem;margin-bottom:1rem">😔</div>
+  <p style="color:var(--t2)">Trình duyệt không hỗ trợ nhận giọng nói.</p>
+  <p style="color:var(--t3);font-size:.85rem">Vui lòng dùng <b>Chrome</b> hoặc <b>Edge</b> trên máy tính.</p>
+  <button class="btn btn-primary" style="margin-top:1rem" onclick="navTo('dashboard')">← Quay lại</button>
+</div>`;
+    return;
+  }
+  function getBest(){try{return JSON.parse(localStorage.getItem('pd-voice-best')||'{}');}catch(e){return{};}}
+  function saveBest(word,score){try{const b=getBest();if((b[word]||0)<score){b[word]=score;localStorage.setItem('pd-voice-best',JSON.stringify(b));}}catch(e){}}
+  function draw(){
+    const w=_vpState.pool[_vpState.idx%_vpState.pool.length];
+    const best=getBest();
+    const bestScore=best[w.de]||0;
+    const done=_vpState.sessionScores.length;
+    const avg=done?Math.round(_vpState.sessionScores.reduce((a,b)=>a+b,0)/done):0;
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🎙️ Luyện phát âm</div></div>
+<div style="padding:0 1rem 1.5rem">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;font-size:.8rem;color:var(--t2)">
+  <span>🎙️ ${done} từ đã luyện${done?` · TB ${avg}%`:''}</span>
+  ${bestScore?`<span>⭐ Kỷ lục: <b style="color:var(--yellow)">${bestScore}%</b></span>`:''}
+</div>
+<div class="vp-card">
+  <button class="btn" style="font-size:.8rem;padding:4px 12px;margin-bottom:.9rem" onclick="speakDE('${esc(w.de)}')">🔊 Nghe mẫu</button>
+  <div class="vp-word">${esc(w.de)}</div>
+  <div class="vp-meaning">${esc(w.vi)}</div>
+  <div id="vp-result" style="display:none" class="vp-result-wrap"></div>
+  <button class="vp-mic-btn" id="vp-mic" onclick="window._vpRecord()">🎙️ Nhấn để nói</button>
+  <div style="color:var(--t3);font-size:.72rem;margin-top:.5rem" id="vp-status">Nhấn mic để bắt đầu ghi âm</div>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:.9rem;justify-content:center">
+  <button class="btn" onclick="window._vpPrev()">← Từ trước</button>
+  <button class="btn btn-primary" onclick="window._vpNext()">Từ tiếp →</button>
+</div>
+</div>`;
+    window._vpRecord=()=>{
+      if(_vpState.recording){
+        if(_vpState.recognition)_vpState.recognition.stop();
+        return;
+      }
+      const rec=new SR();
+      rec.lang='de-DE';rec.interimResults=false;rec.maxAlternatives=1;
+      _vpState.recognition=rec;_vpState.recording=true;
+      const micBtn=document.getElementById('vp-mic');
+      const status=document.getElementById('vp-status');
+      if(micBtn)micBtn.classList.add('recording');
+      if(status)status.textContent='🔴 Đang ghi âm... (nói tiếng Đức)';
+      rec.onresult=(e)=>{
+        const heard=e.results[0][0].transcript;
+        const score=pronounceScore(w.de,heard);
+        saveBest(w.de,score);
+        _vpState.sessionScores.push(score);
+        if(score>=5)progressMission('flash5');
+        if(_vpState.sessionScores.length>=5)progressMission('flash5');
+        if(score>=80){addXP(5,'Phát âm tốt');toast('✅ Phát âm tốt! +5 XP');}
+        else if(score>=60){toast('🟡 Khá tốt! Cần luyện thêm');}
+        else{toast('❌ Cần luyện thêm. Nhấn 🔊 để nghe lại');}
+        const scoreColor=score>=80?'var(--teal)':score>=60?'var(--yellow)':'var(--red)';
+        const icon=score>=80?'✅':score>=60?'🟡':'❌';
+        const res=document.getElementById('vp-result');
+        if(res){
+          res.style.display='block';
+          res.innerHTML=`<div class="vp-heard">Bạn nói: "<i>${esc(heard)}</i>"</div>
+<div style="display:flex;align-items:center;gap:.5rem;margin-top:.4rem">
+  <div class="vp-result-bar"><div class="vp-score-fill" style="width:${score}%;background:${scoreColor}"></div></div>
+  <span style="font-weight:700;color:${scoreColor}">${score}% ${icon}</span>
+</div>`;
+        }
+        _vpState.recording=false;
+        const mb=document.getElementById('vp-mic');const st=document.getElementById('vp-status');
+        if(mb)mb.classList.remove('recording');
+        if(st)st.textContent='Nhấn mic để thử lại';
+      };
+      rec.onerror=(e)=>{
+        _vpState.recording=false;
+        const mb=document.getElementById('vp-mic');const st=document.getElementById('vp-status');
+        if(mb)mb.classList.remove('recording');
+        if(st)st.textContent=e.error==='not-allowed'?'⚠️ Cần cấp quyền microphone':'⚠️ Lỗi: '+e.error;
+      };
+      rec.onend=()=>{_vpState.recording=false;const mb=document.getElementById('vp-mic');if(mb)mb.classList.remove('recording');};
+      try{rec.start();}catch(e){_vpState.recording=false;}
+    };
+    window._vpPrev=()=>{if(_vpState.idx>0)_vpState.idx--;draw();};
+    window._vpNext=()=>{_vpState.idx++;draw();};
+  }
+  draw();
+}
+
+function renderForgettingCurve(){
+  const el=document.getElementById('page-forgetting');
+  if(!el)return;
+  let activeTab='red',expandedWord=null;
+  function draw(){
+    const srsWords=Object.keys(SRS_DB);
+    if(srsWords.length===0){
+      el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">📈 Đường cong quên lãng</div></div>
+<div style="padding:2rem 1rem;text-align:center">
+  <div style="font-size:3rem;margin-bottom:1rem">📚</div>
+  <p style="color:var(--t2)">Bạn chưa học SRS.</p>
+  <p style="color:var(--t3);font-size:.85rem">Hãy vào Ôn SRS để bắt đầu tích lũy dữ liệu!</p>
+  <button class="btn btn-primary" style="margin-top:1rem" onclick="navTo('srs')">→ Ôn SRS ngay</button>
+</div>`;
+      return;
+    }
+    const allVocab=flatAll();
+    const srsSet=new Set(srsWords);
+    const notLearned=allVocab.filter(v=>!srsSet.has(v.de));
+    const words=srsWords.map(de=>{
+      const s=SRS_DB[de];
+      const ret=calcRetention(s.interval,s.due);
+      const vi=allVocab.find(v=>v.de===de)?.vi||'';
+      return{de,vi,ret,interval:s.interval,due:s.due};
+    });
+    const green=words.filter(w=>w.ret>=70);
+    const yellow=words.filter(w=>w.ret>=40&&w.ret<70);
+    const red=words.filter(w=>w.ret<40);
+    const tabWords=activeTab==='red'?red:activeTab==='yellow'?yellow:activeTab==='green'?green:words;
+    const tabDefs={red:{label:'Cần ôn gấp 🔴',color:'var(--red)'},yellow:{label:'Sắp quên 🟡',color:'var(--yellow)'},green:{label:'Nhớ tốt 🟢',color:'var(--green)'},all:{label:'Tất cả',color:'var(--blue)'}};
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">📈 Đường cong quên lãng</div></div>
+<div style="padding:0 1rem 1.5rem">
+<div class="fc-summary-grid">
+  <div class="fc-sum-card" style="border-color:var(--green)" onclick="window._fcTab('green')"><div style="font-size:1.4rem;font-weight:800;color:var(--green)">${green.length}</div><div style="font-size:.72rem;color:var(--t3)">🟢 Nhớ tốt</div></div>
+  <div class="fc-sum-card" style="border-color:var(--yellow)" onclick="window._fcTab('yellow')"><div style="font-size:1.4rem;font-weight:800;color:var(--yellow)">${yellow.length}</div><div style="font-size:.72rem;color:var(--t3)">🟡 Sắp quên</div></div>
+  <div class="fc-sum-card" style="border-color:var(--red)" onclick="window._fcTab('red')"><div style="font-size:1.4rem;font-weight:800;color:var(--red)">${red.length}</div><div style="font-size:.72rem;color:var(--t3)">🔴 Cần ôn</div></div>
+  <div class="fc-sum-card" style="border-color:var(--blue)" onclick="window._fcTab('all')"><div style="font-size:1.4rem;font-weight:800;color:var(--blue)">${notLearned.length}</div><div style="font-size:.72rem;color:var(--t3)">🔵 Chưa học</div></div>
+</div>
+<div class="fc-tabs" style="margin:.9rem 0 .6rem">
+  ${Object.entries(tabDefs).map(([k,v])=>`<button class="fc-tab${activeTab===k?' active':''}" style="${activeTab===k?`background:${v.color};color:#fff`:''}" onclick="window._fcTab('${k}')">${v.label} (${k==='red'?red.length:k==='yellow'?yellow.length:k==='green'?green.length:words.length})</button>`).join('')}
+</div>
+<div class="fc-list">
+${tabWords.length===0?`<p style="color:var(--t3);text-align:center;padding:1.5rem">Không có từ nào trong mục này</p>`:''}
+${tabWords.map(w=>{
+  const c=w.ret>=70?'var(--green)':w.ret>=40?'var(--yellow)':'var(--red)';
+  const isExp=expandedWord===w.de;
+  return`<div class="fc-row${isExp?' expanded':''}" onclick="window._fcExpand('${esc(w.de).replace(/'/g,"\\'")}')">
+  <div class="fc-row-main">
+    <div class="fc-ret-bar"><div class="fc-ret-fill" style="width:${w.ret}%;background:${c}"></div></div>
+    <span style="font-size:.7rem;font-weight:700;color:${c};min-width:36px">${w.ret}%</span>
+    <div class="fc-word-info"><span style="font-weight:600;color:var(--tx)">${esc(w.de)}</span> <span style="color:var(--t3);font-size:.78rem">${esc(w.vi)}</span></div>
+    <button class="btn" style="padding:2px 8px;font-size:.72rem;margin-left:auto" onclick="event.stopPropagation();speakDE('${esc(w.de)}')">🔊</button>
+    <button class="btn" style="padding:2px 8px;font-size:.72rem" onclick="event.stopPropagation();navTo('srs')">Ôn →</button>
+  </div>
+  ${isExp?`<div class="fc-curve-wrap">${renderCurveSVG(w.interval,w.due)}<div style="font-size:.72rem;color:var(--t3);margin-top:.3rem">Interval: ${w.interval}d · Retention: ${w.ret}%</div></div>`:''}
+</div>`;}).join('')}
+</div>
+</div>`;
+    window._fcTab=(t)=>{activeTab=t;expandedWord=null;draw();};
+    window._fcExpand=(de)=>{expandedWord=expandedWord===de?null:de;draw();};
+  }
+  draw();
+}
+
+function renderShiftAdv(){
+  const el=document.getElementById('page-shift-adv');
+  if(!el)return;
+  _saState={sceneId:'intro',health:60,score:0,totalXP:0,history:[],done:false};
+  const SCENE_ORDER=['intro','scene2','scene3','scene3_bad','scene4','scene5'];
+  const mainScenes=['intro','scene2','scene3','scene4','scene5'];
+  function countProgress(){return _saState.history.length;}
+  function draw(){
+    if(_saState.done){
+      const h=_saState.health;
+      const isExc=h>=80,isOk=h>=55;
+      const emoji=isExc?'🏆':isOk?'😊':'📚';
+      const msg=isExc?'Xuất sắc! Bạn là một điều dưỡng giỏi!':isOk?'Tốt! Bạn xử lý được hầu hết tình huống.':'Cần luyện tập thêm. Đừng nản lòng!';
+      const col=isExc?'var(--yellow)':isOk?'var(--teal)':'var(--orange)';
+      el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🏥 Ca trực nâng cao</div></div>
+<div style="padding:0 1rem 1.5rem">
+<div class="sa-ending" style="border-color:${col}">
+  <div style="font-size:2.5rem">${emoji}</div>
+  <h3 style="color:${col};margin:.4rem 0">${msg}</h3>
+  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:.75rem 0">
+    <div style="text-align:center"><div style="font-size:1.3rem;font-weight:700;color:${col}">${h}</div><div style="font-size:.7rem;color:var(--t3)">Sức khỏe BN</div></div>
+    <div style="text-align:center"><div style="font-size:1.3rem;font-weight:700;color:var(--teal)">${_saState.totalXP}</div><div style="font-size:.7rem;color:var(--t3)">XP kiếm được</div></div>
+    <div style="text-align:center"><div style="font-size:1.3rem;font-weight:700;color:var(--blue)">${_saState.score}/${mainScenes.length}</div><div style="font-size:.7rem;color:var(--t3)">Quyết định đúng</div></div>
+  </div>
+  <div style="text-align:left;margin:.75rem 0">
+    ${_saState.history.map(h=>`<div class="sa-hist-item"><span>${h.correct?'✅':'❌'}</span><span style="font-size:.8rem;color:var(--t2)">${esc(h.title)}</span><span style="font-size:.76rem;color:var(--t3)">${esc(h.choiceVI)}</span></div>`).join('')}
+  </div>
+  <button class="btn btn-primary" onclick="renderShiftAdv()">↺ Ca mới</button>
+</div>
+</div>`;
+      return;
+    }
+    const scene=SHIFT_ADV.scenes[_saState.sceneId];
+    if(!scene)return;
+    const prog=countProgress();
+    const hPct=Math.max(0,Math.min(100,_saState.health));
+    const hCol=hPct>=70?'var(--green)':hPct>=40?'var(--yellow)':'var(--red)';
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="navTo('dashboard')">←</div><div class="ph-title">🏥 Ca trực nâng cao</div></div>
+<div style="padding:0 1rem 1.5rem">
+<div class="sa-header">
+  <div style="flex:1">
+    <div style="font-size:.72rem;color:var(--t3);margin-bottom:3px">Sức khỏe bệnh nhân</div>
+    <div class="sa-health-bar"><div class="sa-health-fill" style="width:${hPct}%;background:${hCol}"></div></div>
+    <div style="font-size:.72rem;color:${hCol};margin-top:2px">${hPct}/100</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:.72rem;color:var(--t3)">XP</div>
+    <div style="font-size:1.1rem;font-weight:700;color:var(--teal)">${_saState.totalXP}</div>
+  </div>
+</div>
+<div style="display:flex;gap:4px;margin:.6rem 0">
+  ${mainScenes.map((_,i)=>`<div style="width:24px;height:6px;border-radius:3px;background:${i<prog?'var(--teal)':'var(--b2)'}"></div>`).join('')}
+</div>
+<div class="sa-scene-card">
+  ${scene.patientStatus?`<div class="sa-scene-badge">${esc(scene.patientStatus)}</div>`:''}
+  <div class="sa-scene-title">${esc(scene.title)}</div>
+  <div class="sa-situation-de">${esc(scene.text)}</div>
+  <div class="sa-situation-vi">${esc(scene.textVI)}</div>
+  <div style="font-size:.75rem;color:var(--t3);margin:.75rem 0 .4rem;font-weight:600">QUYẾT ĐỊNH CỦA BẠN:</div>
+  <div class="sa-choices" id="sa-choices">
+    ${scene.choices.map((c,i)=>`<button class="sa-choice" onclick="window._saChoose(${i})">
+      <span class="sa-choice-de">${esc(c.text)}</span>
+      <span class="sa-choice-vi">${esc(c.textVI)}</span>
+    </button>`).join('')}
+  </div>
+  <div id="sa-feedback" style="display:none"></div>
+  <div id="sa-next" style="display:none;margin-top:.75rem"><button class="btn btn-primary" onclick="window._saNext()">Tiếp tục →</button></div>
+</div>
+</div>`;
+    let _chosenNext=null;
+    window._saChoose=(i)=>{
+      const scene=SHIFT_ADV.scenes[_saState.sceneId];
+      const choice=scene.choices[i];
+      const opts=document.querySelectorAll('.sa-choice');
+      opts.forEach((b,j)=>{b.disabled=true;if(j===i)b.classList.add(choice.healthDelta>0?'correct':'wrong');});
+      _saState.health=Math.max(0,Math.min(100,_saState.health+choice.healthDelta));
+      _saState.totalXP+=choice.xp;
+      if(choice.xp>0){_saState.score++;addXP(choice.xp,'Ca trực nâng cao');}
+      _saState.history.push({title:scene.title,choiceVI:choice.textVI,correct:choice.xp>0});
+      _chosenNext=choice.nextId;
+      const fb=document.getElementById('sa-feedback');
+      if(fb){
+        fb.style.display='block';
+        fb.innerHTML=`<div class="sa-feedback-box ${choice.healthDelta>0?'good':'bad'}">
+          <b>${choice.healthDelta>0?'✅':'❌'}</b> ${esc(choice.feedback)}<br>
+          <span style="font-size:.78rem;color:var(--t2)">${esc(choice.feedbackVI)}</span>
+          <span style="font-size:.75rem;color:var(--t3);display:block;margin-top:3px">${choice.healthDelta>0?`❤️ +${choice.healthDelta}`:`💔 ${choice.healthDelta}`} · ${choice.xp>0?`⚡ +${choice.xp} XP`:'Không có XP'}</span>
+        </div>`;
+      }
+      const nb=document.getElementById('sa-next');if(nb)nb.style.display='block';
+      // Update health bar
+      const hFill=document.querySelector('.sa-health-fill');
+      const hPct2=Math.max(0,Math.min(100,_saState.health));
+      const hCol2=hPct2>=70?'var(--green)':hPct2>=40?'var(--yellow)':'var(--red)';
+      if(hFill){hFill.style.width=hPct2+'%';hFill.style.background=hCol2;}
+    };
+    window._saNext=()=>{
+      if(_chosenNext==='end'||!_chosenNext){
+        _saState.done=true;
+        progressMission('ex1');
+        draw();
+      } else {
+        _saState.sceneId=_chosenNext;
+        draw();
+      }
+    };
+  }
+  draw();
+}
+
+// ════════════════════════════════════════════════════════
 function renderDashboard(){
   if(!document.getElementById('dash-xp-card')) return;
   const lv=getLevel(GS.xp),nx=getNextLevel(GS.xp);
@@ -2568,6 +2961,9 @@ function renderDashboard(){
     {icon:'🏥',title:'Ca làm việc',sub:'5 tình huống thực tế',page:'shift-sim'},
     {icon:'🏅',title:'Pflegegrad',sub:'PG1–5 + Quiz',page:'pflegegrad'},
     {icon:'🗣️',title:'Phát âm',sub:'15 âm tiếng Đức',page:'pronunciation'},
+    {icon:'🎙️',title:'Phát âm',sub:'Voice recognition',page:'voice-practice'},
+    {icon:'📈',title:'Quên lãng',sub:'Ebbinghaus curve',page:'forgetting'},
+    {icon:'🏥',title:'Ca trực Pro',sub:'Kịch bản phân nhánh',page:'shift-adv'},
   ];
   let featGridSec=document.getElementById('dash-feat-grid-sec');
   if(!featGridSec){
